@@ -1,0 +1,1040 @@
+CREATE "leads" table manuals
+
+id     int8    NULL 
+created_at    timestamptz    now()
+client_id     text           NULL
+client_name   text        NULL
+
+
+/////////////////////////////////////////////
+
+CREATE "queue" table manuals
+
+id  int8  NULL
+
+sender_id  varchar  NULL
+
+message   text  NULL
+
+///////////////////////////////////////////
+create the "history for the agent" table 
+will be connected with prostesql
+
+
+id     int4   >>> null   or   nextval('ai_wisdom_history_id_seq'::regclass)
+
+
+session_id varchar NULL
+
+message { }jsonb   NULL
+
+///////////////////////////////////////////////////////
+///////////////////////////////////////////////////
+
+
+In sqleditor : >>>>>>>>>
+
+
+
+CREATE SCHEMA IF NOT EXISTS extensions;
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
+
+
+***********************************************
+
+
+-- Enable UUID generation if not already enabled for your project
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp"; -- Supabase usually has this by default
+
+CREATE TABLE contacts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    platform TEXT NOT NULL, -- 'facebook', 'whatsapp', 'instagram'
+    platform_user_id TEXT NOT NULL, -- User's ID on the specific platform
+    name TEXT, -- User's display name from platform
+    avatar_url TEXT, -- URL to their profile picture
+    ai_enabled BOOLEAN DEFAULT TRUE, -- Flag if AI replies are active for this contact
+    last_interaction_at TIMESTAMPTZ DEFAULT NOW(), -- Timestamp of the last message
+    last_message_preview TEXT, -- Short snippet of the last message
+    unread_count INTEGER DEFAULT 0, -- Number of messages from this contact you haven't read
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+
+    CONSTRAINT unique_platform_user UNIQUE (platform, platform_user_id)
+);
+
+-- Add indexes for faster lookups
+CREATE INDEX idx_contacts_platform_user_id ON contacts(platform_user_id, platform);
+CREATE INDEX idx_contacts_last_interaction_at ON contacts(last_interaction_at DESC); -- For sorting by recent activity
+CREATE INDEX idx_contacts_unread_count ON contacts(unread_count); -- If you often filter/sort by unread
+
+-- Function to auto-update 'updated_at' timestamp on any table it's applied to
+CREATE OR REPLACE FUNCTION public.update_modified_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger to auto-update 'updated_at' on the 'contacts' table
+CREATE TRIGGER update_contacts_modtime
+BEFORE UPDATE ON contacts
+FOR EACH ROW
+EXECUTE FUNCTION public.update_modified_column();
+
+-- Comments for clarity
+COMMENT ON COLUMN contacts.platform IS 'The social media platform (e.g., facebook, whatsapp, instagram)';
+COMMENT ON COLUMN contacts.platform_user_id IS 'The unique identifier of the user on that specific platform';
+COMMENT ON COLUMN contacts.ai_enabled IS 'Flag to indicate if AI replies are active for this contact';
+COMMENT ON COLUMN contacts.last_interaction_at IS 'Timestamp of the last message sent or received for this contact';
+COMMENT ON COLUMN contacts.last_message_preview IS 'A short preview of the most recent message for this contact';
+COMMENT ON COLUMN contacts.unread_count IS 'Number of messages from this contact that you (dashboard user) have not yet read';
+
+
+************************************************************************************
+
+CREATE TABLE messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    contact_id UUID NOT NULL REFERENCES contacts(id) ON DELETE CASCADE, -- Link to the contact
+    message_platform_id TEXT, -- Optional: The ID from the source platform (e.g., Facebook msg ID)
+    
+    sender_type TEXT NOT NULL, -- 'user' (the contact), 'agent' (you from dashboard), 'ai', 'system'
+    
+    content_type TEXT NOT NULL DEFAULT 'text', -- 'text', 'image', 'file', 'audio', etc.
+    text_content TEXT, -- For text messages
+    attachment_url TEXT, -- URL for images, files etc.
+    attachment_filename TEXT, -- Original filename for attachments
+    attachment_metadata JSONB, -- e.g., { "size": 1024, "mime_type": "image/jpeg" }
+
+    is_read_by_agent BOOLEAN DEFAULT FALSE, -- TRUE if you (dashboard user) have seen this message (applies to sender_type='user')
+    
+    sent_at TIMESTAMPTZ DEFAULT NOW(), -- When the message was processed by our system
+    platform_timestamp TIMESTAMPTZ, -- Original timestamp from the source platform, if available
+
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes for faster querying
+CREATE INDEX idx_messages_contact_id_sent_at ON messages(contact_id, sent_at DESC); -- Efficiently get messages for a chat
+CREATE INDEX idx_messages_contact_id_is_read_agent_sender ON messages(contact_id, is_read_by_agent, sender_type); -- For unread count logic
+
+
+-- Comments for clarity
+COMMENT ON COLUMN messages.contact_id IS 'Foreign key linking to the contact who this message exchange is with';
+COMMENT ON COLUMN messages.message_platform_id IS 'The unique ID of the message from the originating platform (e.g., Facebook message ID)';
+COMMENT ON COLUMN messages.sender_type IS 'Indicates who sent the message: user (the contact), agent (a human from the dashboard), ai (an automated AI reply), system (e.g. notifications)';
+COMMENT ON COLUMN messages.content_type IS 'The type of content in the message (e.g., text, image, file)';
+COMMENT ON COLUMN messages.text_content IS 'The actual text content of the message, if applicable';
+COMMENT ON COLUMN messages.attachment_url IS 'URL pointing to the message attachment (e.g., image, document)';
+COMMENT ON COLUMN messages.attachment_filename IS 'Original filename of the attachment';
+COMMENT ON COLUMN messages.attachment_metadata IS 'Additional metadata for attachments like size, mime type, dimensions';
+COMMENT ON COLUMN messages.is_read_by_agent IS 'Flag indicating if a message from a ''user'' has been read by you (dashboard user)';
+COMMENT ON COLUMN messages.sent_at IS 'Timestamp when the message was sent or received by our system';
+COMMENT ON COLUMN messages.platform_timestamp IS 'Original timestamp of the message from the source platform';
+
+************************************************************************************************
+
+-- Function to update contact's summary fields
+CREATE OR REPLACE FUNCTION public.update_contact_summary_on_message()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_contact_id UUID;
+BEGIN
+    -- Determine which contact_id to use based on INSERT, UPDATE, or DELETE
+    IF (TG_OP = 'DELETE') THEN
+        v_contact_id = OLD.contact_id;
+    ELSE
+        v_contact_id = NEW.contact_id;
+    END IF;
+
+    -- Update the related contact record
+    UPDATE contacts
+    SET 
+        last_interaction_at = (SELECT MAX(m.sent_at) FROM messages m WHERE m.contact_id = v_contact_id),
+        last_message_preview = (
+            SELECT CASE 
+                       WHEN sub.content_type = 'text' THEN LEFT(sub.text_content, 70)
+                       WHEN sub.content_type = 'image' THEN '[Image]'
+                       WHEN sub.content_type = 'file' THEN '[File: ' || COALESCE(sub.attachment_filename, 'attachment') || ']'
+                       ELSE '[' || INITCAP(sub.content_type) || ']'
+                   END
+            FROM messages sub
+            WHERE sub.contact_id = v_contact_id
+            ORDER BY sub.sent_at DESC
+            LIMIT 1
+        ),
+        unread_count = (
+            SELECT COUNT(*) 
+            FROM messages m
+            WHERE m.contact_id = v_contact_id 
+              AND m.sender_type = 'user' 
+              AND m.is_read_by_agent = FALSE
+        )
+    WHERE id = v_contact_id;
+
+    RETURN NULL; -- Result is ignored since this is an AFTER trigger
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER; -- SECURITY DEFINER allows it to update table even if invoker doesn't have direct rights (use with caution, ensure function is secure)
+
+-- Trigger to call the function after a new message is inserted,
+-- or a message's read status changes, or a message is deleted.
+CREATE TRIGGER messages_after_insert_update_delete_trigger
+AFTER INSERT OR UPDATE OF is_read_by_agent, sender_type OR DELETE ON messages -- Include sender_type if it can change, though unlikely
+FOR EACH ROW
+EXECUTE FUNCTION public.update_contact_summary_on_message();
+
+*****************************************************************
+
+-- Policy Name: Allow authenticated users to manage contacts
+CREATE POLICY "Allow authenticated users to manage contacts"
+ON public.contacts
+FOR ALL -- Covers SELECT, INSERT, UPDATE, DELETE
+TO authenticated -- Only applies to logged-in users
+USING (true) -- The condition for which rows are visible/modifiable (true means all rows)
+WITH CHECK (true); -- The condition for INSERT/UPDATE (true means any valid data can be inserted/updated)
+
+***********************************************************************
+-- Policy Name: Allow authenticated users to manage messages
+CREATE POLICY "Allow authenticated users to manage messages"
+ON public.messages
+FOR ALL
+TO authenticated
+USING (true)
+WITH CHECK (true);
+************************************************
+
+-- Enable RLS on messages table
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+
+-- Policies for messages table
+CREATE POLICY "Allow authenticated users to select messages"
+ON public.messages
+FOR SELECT
+TO authenticated
+USING (true);
+
+CREATE POLICY "Allow authenticated users to insert messages"
+ON public.messages
+FOR INSERT
+TO authenticated
+WITH CHECK (true);
+
+CREATE POLICY "Allow authenticated users to update messages"
+ON public.messages
+FOR UPDATE
+TO authenticated
+USING (true)
+WITH CHECK (true);
+
+CREATE POLICY "Allow authenticated users to delete messages"
+ON public.messages
+FOR DELETE
+TO authenticated
+USING (true);
+
+-- Enable RLS on contacts table
+ALTER TABLE public.contacts ENABLE ROW LEVEL SECURITY;
+
+-- Policies for contacts table
+CREATE POLICY "Allow authenticated users to select contacts"
+ON public.contacts
+FOR SELECT
+TO authenticated
+USING (true);
+
+CREATE POLICY "Allow authenticated users to insert contacts"
+ON public.contacts
+FOR INSERT
+TO authenticated
+WITH CHECK (true);
+
+CREATE POLICY "Allow authenticated users to update contacts"
+ON public.contacts
+FOR UPDATE
+TO authenticated
+USING (true)
+WITH CHECK (true);
+
+CREATE POLICY "Allow authenticated users to delete contacts"
+ON public.contacts
+FOR DELETE
+TO authenticated
+USING (true);
+
+
+
+
+
+***********************************************************
+FUNCTIONS 
+***********************************************************
+
+// supabase/functions/get-messages-for-contact/index.ts
+import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+};
+serve(async (req)=>{
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', {
+      headers: corsHeaders
+    });
+  }
+  try {
+    const supabaseClient = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
+      global: {
+        headers: {
+          Authorization: req.headers.get('Authorization')
+        }
+      }
+    });
+    const { contact_id } = await req.json() // Expect contact_id in the request body
+    ;
+    if (!contact_id) {
+      throw new Error('Missing contact_id in request body');
+    }
+    const { data: messages, error } = await supabaseClient.from('messages').select(`
+        id,
+        contact_id,
+        message_platform_id,
+        sender_type,
+        content_type,
+        text_content,
+        attachment_url,
+        attachment_filename,
+        is_read_by_agent,
+        sent_at,
+        platform_timestamp
+      `).eq('contact_id', contact_id).order('sent_at', {
+      ascending: true
+    }) // Order messages chronologically
+    ;
+    if (error) throw error;
+    return new Response(JSON.stringify(messages || []), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      }
+    });
+  } catch (error) {
+    console.error('Error in get-messages-for-contact:', error.message);
+    return new Response(JSON.stringify({
+      error: error.message
+    }), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      status: 500
+    });
+  }
+});
+
+
+///////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
+
+
+// supabase/functions/mark-chat-as-read/index.ts
+import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+};
+serve(async (req)=>{
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', {
+      headers: corsHeaders
+    });
+  }
+  try {
+    // Use service_role key for this operation as it's a system action
+    // triggered by an agent, and we want to bypass RLS that might prevent
+    // an agent from updating messages directly if they don't "own" them.
+    // Alternatively, set up specific RLS policies allowing agents to update is_read_by_agent.
+    const supabaseAdminClient = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '' // IMPORTANT: Use SERVICE_ROLE_KEY
+    );
+    const { contact_id } = await req.json();
+    if (!contact_id) {
+      throw new Error('Missing contact_id in request body');
+    }
+    const { data, error } = await supabaseAdminClient.from('messages').update({
+      is_read_by_agent: true
+    }).eq('contact_id', contact_id).eq('sender_type', 'user') // Only mark messages from 'user' as read
+    .eq('is_read_by_agent', false) // Only update those that are currently unread
+    ;
+    if (error) throw error;
+    // The trigger on the messages table will update the contact's unread_count
+    return new Response(JSON.stringify({
+      success: true,
+      updated_count: data ? data.length : 0
+    }), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      }
+    });
+  } catch (error) {
+    console.error('Error in mark-chat-as-read:', error.message);
+    return new Response(JSON.stringify({
+      error: error.message
+    }), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      status: 500
+    });
+  }
+});
+
+
+///////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
+
+
+// supabase/functions/send-facebook-agent-message/index.ts
+import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'; // Or your current Deno std version
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'; // Or your current Supabase JS version
+// Standard CORS headers - adjust Access-Control-Allow-Origin for production
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+};
+// Get the n8n webhook URL from environment variables
+// This URL should point to your n8n workflow: /send-agent-facebook-message
+const N8N_FACEBOOK_SENDER_WEBHOOK_URL = Deno.env.get('N8N_MESSAGE_SEND_WEBHOOK_URL') ?? '';
+serve(async (req)=>{
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', {
+      headers: corsHeaders
+    });
+  }
+  // Check if the n8n webhook URL is configured
+  if (!N8N_FACEBOOK_SENDER_WEBHOOK_URL) {
+    console.error('N8N_MESSAGE_SEND_WEBHOOK_URL (for Facebook sender) is not set in environment variables.');
+    return new Response(JSON.stringify({
+      error: 'Server configuration error: Missing n8n webhook URL.'
+    }), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      status: 503
+    } // Service Unavailable
+    );
+  }
+  try {
+    // Create a Supabase client using the service role key for admin-level operations
+    // This bypasses RLS and is appropriate for backend functions managing data.
+    const supabaseAdminClient = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
+    // --- Parse Request Body ---
+    // Expected payload from frontend:
+    // {
+    //   contact_id: string, (UUID of the contact)
+    //   content_type: 'text' | 'image',
+    //   text_content?: string, (Optional for images, required for text-only)
+    //   attachment_url?: string (Required if content_type is 'image', URL provided by frontend)
+    // }
+    const payloadFromFrontend = await req.json();
+    // --- Basic Payload Validation ---
+    if (!payloadFromFrontend.contact_id || !payloadFromFrontend.content_type) {
+      throw new Error('Missing required fields in payload: contact_id and content_type are required.');
+    }
+    if (payloadFromFrontend.content_type === 'text' && !payloadFromFrontend.text_content) {
+      // If it's purely a text message, text_content must exist.
+      // If it's an image that *also* has text, this is fine.
+      // This check assumes if content_type is 'text', it's a text-only message.
+      // The frontend logic should ensure text_content is "" or null if only an image URL is provided
+      // and content_type is 'image'.
+      if (!payloadFromFrontend.attachment_url) {
+        throw new Error('text_content is required for text-only messages.');
+      }
+    }
+    if (payloadFromFrontend.content_type === 'image' && !payloadFromFrontend.attachment_url) {
+      throw new Error('attachment_url is required for image messages.');
+    }
+    // --- End Basic Payload Validation ---
+    // 1. Prepare the message object to be saved in the database
+    const messageToSaveInDB = {
+      contact_id: payloadFromFrontend.contact_id,
+      sender_type: 'agent',
+      content_type: payloadFromFrontend.content_type,
+      text_content: payloadFromFrontend.text_content || null,
+      attachment_url: payloadFromFrontend.attachment_url || null,
+      is_read_by_agent: true,
+      sent_at: new Date().toISOString()
+    };
+    // 2. Insert the message into the Supabase 'messages' table
+    const { data: savedMessage, error: dbError } = await supabaseAdminClient.from('messages').insert(messageToSaveInDB).select() // Select all columns of the inserted row
+    .single() // Expect only one row to be inserted and returned
+    ;
+    if (dbError) {
+      console.error('Supabase DB Insert Error:', dbError);
+      throw new Error(`Database error: ${dbError.message}`) // Propagate a more specific error
+      ;
+    }
+    if (!savedMessage) {
+      throw new Error('Failed to save message to database and retrieve the saved record.');
+    }
+    // 3. Fetch the contact's platform-specific ID (e.g., Facebook PSID)
+    const { data: contactDetails, error: contactFetchError } = await supabaseAdminClient.from('contacts').select('platform_user_id, platform') // We need platform_user_id for n8n
+    .eq('id', savedMessage.contact_id) // Match by the contact_id from the payload
+    .single();
+    if (contactFetchError || !contactDetails) {
+      console.error('Failed to fetch contact details for n8n webhook:', contactFetchError?.message);
+      // Message is saved in DB, but we can't trigger n8n to send it to the platform.
+      // Return a specific status to the frontend to indicate partial success.
+      return new Response(JSON.stringify({
+        warning: 'Message saved to DB, but could not fetch contact details to trigger platform send.',
+        message: savedMessage
+      }), {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        },
+        status: 207
+      } // HTTP 207 Multi-Status
+      );
+    }
+    // Optional: Verify if the contact's platform matches the n8n webhook's purpose (e.g., Facebook)
+    if (contactDetails.platform !== 'facebook') {
+      console.warn(`Contact platform is '${contactDetails.platform}', but this function is configured to use a Facebook sender n8n webhook. Proceeding, but this might be unintended.`);
+    // Depending on strictness, you could choose to error out here or just log.
+    }
+    // 4. Prepare the payload for the n8n webhook
+    // This payload should match what your n8n webhook (/send-agent-facebook-message) expects
+    const payloadForN8N = {
+      recipient_id: contactDetails.platform_user_id,
+      message_type: savedMessage.content_type,
+      text_content: savedMessage.text_content,
+      attachment_url: savedMessage.attachment_url
+    };
+    // 5. Trigger the n8n workflow (asynchronously - "fire and forget")
+    // The Edge Function doesn't wait for n8n to complete.
+    fetch(N8N_FACEBOOK_SENDER_WEBHOOK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payloadForN8N)
+    }).then(async (n8nResponse)=>{
+      if (!n8nResponse.ok) {
+        // Log if n8n webhook call was not successful
+        console.error(`Error triggering n8n Facebook send workflow (HTTP ${n8nResponse.status}):`, await n8nResponse.text() // Get more details from n8n error response
+        );
+      // Note: The message is already saved in your DB.
+      // You might want to implement a retry mechanism or flag the message in DB for follow-up.
+      } else {
+        console.log('Successfully triggered n8n webhook for Facebook message send.');
+      }
+    }).catch((n8nFetchError)=>{
+      // Log if there was a network error or other issue making the fetch call to n8n
+      console.error('Network or other error while triggering n8n Facebook send workflow:', n8nFetchError.message);
+    });
+    // 6. Return the successfully saved message to the frontend
+    // The frontend can use this to update its optimistic message with the real one from DB.
+    return new Response(JSON.stringify({
+      success: true,
+      message: savedMessage
+    }), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      status: 200
+    });
+  } catch (error) {
+    // Catch any errors from parsing, validation, or DB operations
+    console.error('Error in send-agent-message Edge Function:', error.message);
+    return new Response(JSON.stringify({
+      error: error.message
+    }), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      status: error.message.includes('required fields') || error.message.includes('is required') ? 400 : 500
+    });
+  }
+});
+
+
+///////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
+
+// supabase/functions/update-contact-name/index.ts
+import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+};
+serve(async (req)=>{
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', {
+      headers: corsHeaders
+    });
+  }
+  try {
+    // Use service_role key if you want to bypass RLS for this specific update
+    // Or, ensure your authenticated user's RLS policy allows updating the 'name' field of contacts.
+    // For simplicity here, we'll use service_role, but consider RLS implications.
+    const supabaseAdminClient = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '' // IMPORTANT
+    );
+    const { contact_id, new_name } = await req.json();
+    if (!contact_id || typeof new_name !== 'string') {
+      throw new Error('Missing contact_id or new_name in request body, or new_name is not a string.');
+    }
+    const { data, error } = await supabaseAdminClient.from('contacts').update({
+      name: new_name.trim()
+    }) // Trim whitespace
+    .eq('id', contact_id).select() // Return the updated row
+    .single(); // Expect a single row to be updated
+    if (error) throw error;
+    if (!data) throw new Error('Contact not found or update failed.');
+    return new Response(JSON.stringify({
+      success: true,
+      updatedContact: data
+    }), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      status: 200
+    });
+  } catch (error) {
+    console.error('Error in update-contact-name function:', error.message);
+    return new Response(JSON.stringify({
+      error: error.message
+    }), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      status: 500
+    });
+  }
+});
+
+
+///////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
+
+
+// supabase/functions/send-agent-whatsapp-message/index.ts
+import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+};
+// Environment variable for the NEW n8n WhatsApp sender webhook
+const N8N_WHATSAPP_SENDER_WEBHOOK_URL = Deno.env.get('N8N_WHATSAPP_SENDER_WEBHOOK_URL') ?? '';
+serve(async (req)=>{
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', {
+      headers: corsHeaders
+    });
+  }
+  if (!N8N_WHATSAPP_SENDER_WEBHOOK_URL) {
+    console.error('N8N_WHATSAPP_SENDER_WEBHOOK_URL is not set.');
+    return new Response(JSON.stringify({
+      error: 'Server configuration error: Missing WhatsApp n8n webhook URL.'
+    }), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      status: 503
+    });
+  }
+  try {
+    const supabaseAdminClient = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
+    // Expected payload from frontend:
+    // {
+    //   contact_id: string, (UUID of the contact)
+    //   content_type: 'text' | 'image',
+    //   text_content?: string,
+    //   attachment_url?: string (URL provided by frontend)
+    // }
+    const payloadFromFrontend = await req.json();
+    // Basic Payload Validation
+    if (!payloadFromFrontend.contact_id || !payloadFromFrontend.content_type) {
+      throw new Error('Missing required fields: contact_id and content_type.');
+    }
+    if (payloadFromFrontend.content_type === 'text' && !payloadFromFrontend.text_content && !payloadFromFrontend.attachment_url) {
+      if (!payloadFromFrontend.text_content) {
+        throw new Error('text_content is required for text-only messages.');
+      }
+    }
+    if (payloadFromFrontend.content_type === 'image' && !payloadFromFrontend.attachment_url) {
+      throw new Error('attachment_url is required for image messages.');
+    }
+    // 1. Save message to DB (same logic as before, sender_type: 'agent')
+    const messageToSaveInDB = {
+      contact_id: payloadFromFrontend.contact_id,
+      sender_type: 'agent',
+      content_type: payloadFromFrontend.content_type,
+      text_content: payloadFromFrontend.text_content || null,
+      attachment_url: payloadFromFrontend.attachment_url || null,
+      is_read_by_agent: true,
+      sent_at: new Date().toISOString()
+    };
+    const { data: savedMessage, error: dbError } = await supabaseAdminClient.from('messages').insert(messageToSaveInDB).select().single();
+    if (dbError) throw new Error(`Database error: ${dbError.message}`);
+    if (!savedMessage) throw new Error('Failed to save message to DB.');
+    // 2. Fetch contact's platform_user_id (phone number) AND your WABA phone_number_id
+    // We need the business_phone_id for sending WhatsApp messages.
+    // Option 1: Store business_phone_id with the contact (if each contact could be tied to a different sending number - less common)
+    // Option 2: Have a general business_phone_id in env vars if you only use one.
+    // Option 3: Fetch it from a related 'business_accounts' table if you manage multiple sending numbers.
+    // For simplicity, let's assume you might store it or have one main one.
+    // We will fetch the platform_user_id (recipient) and assume a business_phone_id is available.
+    const { data: contactDetails, error: contactFetchError } = await supabaseAdminClient.from('contacts').select('platform_user_id, platform') // platform_user_id is the recipient's phone
+    .eq('id', savedMessage.contact_id).single();
+    if (contactFetchError || !contactDetails) {
+      console.error('Failed to fetch contact details for WhatsApp n8n:', contactFetchError?.message);
+      return new Response(JSON.stringify({
+        warning: 'Message saved, but failed to get contact details for platform send.',
+        message: savedMessage
+      }), {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        },
+        status: 207
+      });
+    }
+    if (contactDetails.platform !== 'whatsapp') {
+      console.warn(`Contact platform is '${contactDetails.platform}', but this function is for WhatsApp. Message saved, but not sent to n8n.`);
+      return new Response(JSON.stringify({
+        warning: `Message for ${contactDetails.platform} contact saved, but not sent via WhatsApp sender.`,
+        message: savedMessage
+      }), {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        },
+        status: 202
+      }); // Accepted, but not fully processed for platform
+    }
+    // IMPORTANT: Get YOUR WABA Business Phone Number ID.
+    // This ID is required by the WhatsApp API to specify *which* of your numbers is sending.
+    // You can get this from the Meta App Dashboard (WhatsApp > API Setup > Phone number ID).
+    // Best to store this as an environment variable in Supabase for this function.
+    const YOUR_WABA_BUSINESS_PHONE_ID = Deno.env.get('WABA_BUSINESS_PHONE_ID') ?? '';
+    if (!YOUR_WABA_BUSINESS_PHONE_ID) {
+      console.error('WABA_BUSINESS_PHONE_ID environment variable is not set.');
+      // Message is saved, but cannot send to WhatsApp
+      return new Response(JSON.stringify({
+        warning: 'Message saved, but server misconfiguration prevents sending to WhatsApp (missing Business Phone ID).',
+        message: savedMessage
+      }), {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        },
+        status: 207
+      });
+    }
+    // 3. Prepare payload for the N8N WhatsApp Sender Webhook
+    const payloadForN8N = {
+      recipient_phone_number: contactDetails.platform_user_id,
+      business_phone_id: YOUR_WABA_BUSINESS_PHONE_ID,
+      message_type: savedMessage.content_type,
+      text_content: savedMessage.text_content,
+      attachment_url: savedMessage.attachment_url
+    };
+    // 4. Trigger n8n (fire and forget)
+    fetch(N8N_WHATSAPP_SENDER_WEBHOOK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payloadForN8N)
+    }).then(async (n8nResponse)=>{
+      if (!n8nResponse.ok) {
+        console.error(`Error triggering n8n WhatsApp send (HTTP ${n8nResponse.status}):`, await n8nResponse.text());
+      } else {
+        console.log('Successfully triggered n8n for WhatsApp message send.');
+      }
+    }).catch((n8nFetchError)=>{
+      console.error('Network error triggering n8n WhatsApp send:', n8nFetchError.message);
+    });
+    return new Response(JSON.stringify({
+      success: true,
+      message: savedMessage
+    }), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      status: 200
+    });
+  } catch (error) {
+    console.error('Error in send-agent-whatsapp-message:', error.message);
+    return new Response(JSON.stringify({
+      error: error.message
+    }), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      status: error.message.includes('required fields') || error.message.includes('is required') ? 400 : 500
+    });
+  }
+});
+
+
+///////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+// supabase/functions/get-contacts/index.ts
+import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'; // Using a pinned version for stability
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'; // Supabase JS V2
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+};
+console.log("get-contacts function initializing from dashboard deploy");
+serve(async (req)=>{
+  if (req.method === 'OPTIONS') {
+    console.log("Handling OPTIONS preflight request for get-contacts");
+    return new Response('ok', {
+      headers: corsHeaders
+    });
+  }
+  try {
+    console.log("get-contacts function invoked with method:", req.method);
+    const supabaseClient = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
+      global: {
+        headers: {
+          Authorization: req.headers.get('Authorization')
+        }
+      }
+    });
+    console.log("Supabase client created for get-contacts");
+    const { data: contacts, error } = await supabaseClient.from('contacts').select('id, platform, platform_user_id, name, avatar_url, ai_enabled, last_interaction_at, last_message_preview, unread_count').order('unread_count', {
+      ascending: false
+    }).order('last_interaction_at', {
+      ascending: false
+    });
+    if (error) {
+      console.error('Supabase error fetching contacts:', error);
+      throw error;
+    }
+    console.log("Successfully fetched contacts:", contacts ? contacts.length : 0, "found.");
+    return new Response(JSON.stringify(contacts || []), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      status: 200
+    });
+  } catch (error) {
+    console.error('Error in get-contacts function:', error.message);
+    return new Response(JSON.stringify({
+      error: error.message
+    }), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      status: 500
+    });
+  }
+});
+
+
+
+////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////
+
+
+// supabase/functions/delete-contact-and-messages/index.ts
+import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+};
+serve(async (req)=>{
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', {
+      headers: corsHeaders
+    });
+  }
+  try {
+    // Use service_role key for delete operations to ensure permissions
+    // and to handle cascading deletes correctly.
+    const supabaseAdminClient = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '', {
+      global: {
+        fetch: fetch
+      }
+    });
+    const { contact_id } = await req.json();
+    if (!contact_id) {
+      throw new Error('Missing contact_id in request body');
+    }
+    console.log(`Attempting to delete contact and messages for contact_id: ${contact_id}`);
+    // The `messages` table has `ON DELETE CASCADE` for `contact_id` referencing `contacts(id)`.
+    // So, deleting the contact from the `contacts` table will automatically
+    // delete all associated messages.
+    const { data: deletedContact, error: deleteError } = await supabaseAdminClient.from('contacts').delete().eq('id', contact_id).select() // To confirm what was deleted (optional, returns array of deleted items)
+    .single(); // Expecting one contact to be deleted
+    if (deleteError) {
+      console.error('Supabase delete error:', deleteError);
+      throw deleteError;
+    }
+    if (!deletedContact) {
+      // This might happen if the contact_id didn't exist or was already deleted.
+      console.warn(`No contact found with id ${contact_id} to delete, or already deleted.`);
+      return new Response(JSON.stringify({
+        success: true,
+        message: `Contact ${contact_id} not found or already deleted.`
+      }), {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        },
+        status: 200
+      });
+    }
+    console.log(`Successfully deleted contact ${contact_id} and its messages. Details:`, deletedContact);
+    return new Response(JSON.stringify({
+      success: true,
+      deletedContactId: contact_id,
+      details: deletedContact
+    }), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      status: 200
+    });
+  } catch (error) {
+    console.error('Error in delete-contact-and-messages function:', error.message);
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+    return new Response(JSON.stringify({
+      error: errorMessage
+    }), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      status: errorMessage.includes('Missing contact_id') ? 400 : 500
+    });
+  }
+});
+
+
+///////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////
+
+
+// supabase/functions/get-whatsapp-contacts-for-backup/index.ts
+import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS'
+};
+serve(async (req)=>{
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', {
+      headers: corsHeaders
+    });
+  }
+  try {
+    // Create a Supabase client with the user's auth context
+    const supabaseClient = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
+      global: {
+        headers: {
+          Authorization: req.headers.get('Authorization')
+        }
+      }
+    });
+    const { data, error } = await supabaseClient.from('contacts').select('name, platform_user_id') // Select name and phone number
+    .eq('platform', 'whatsapp') // Filter for WhatsApp contacts
+    .order('name', {
+      ascending: true
+    }); // Optional: order by name
+    if (error) {
+      console.error('Supabase error fetching WhatsApp contacts for backup:', error);
+      throw error;
+    }
+    console.log(`Fetched ${data?.length || 0} WhatsApp contacts for backup.`);
+    return new Response(JSON.stringify(data || []), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      status: 200
+    });
+  } catch (error) {
+    console.error('Error in get-whatsapp-contacts-for-backup function:', error.message);
+    return new Response(JSON.stringify({
+      error: error.message
+    }), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      status: 500
+    });
+  }
+});
+
+
+
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+
+
+Enable realtime for MESSAGES and CONTACTS TABLES
+
+
+///////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
+
+AUTH POLICIES    for contacts and messages TABELS
+
+NAME of policy:
+Allow anon SELECT on contacts for temp testing
+Applied to: anon role
+
+
+sql expression :  true
+
+ a SELECT policy for the anon role with USING (true) was added to the contacts table to allow the unauthenticated frontend (during early development) to fetch contacts for display. This is temporary until frontend authentication is implemented.
+BUT I USED (ALL) for now
+
+
+
+Allow anon ALL on messages for temp testing
+Applied to: anon role
+
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+

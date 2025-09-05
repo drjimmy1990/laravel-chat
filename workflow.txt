@@ -1,0 +1,2764 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "path": "trendmart",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "7bd2a65b-b025-4cd3-893b-ad6b9cacc632",
+      "name": "Webhook",
+      "webhookId": "5f4463b3-82ff-4137-a055-9f3bf6b56cb4"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query['hub.challenge'] }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        704,
+        0
+      ],
+      "id": "4168d05e-fd91-45ba-be88-4795184e58a4",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Webhook1').item.json.body.entry[0].messaging[0].message.attachments[0].type }}",
+                    "rightValue": "audio",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "0d089893-195d-4738-aaa8-fec6a72ff757"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "fbb513ed-b191-4526-9127-7410f2d04cdd",
+                    "leftValue": "={{ $('Webhook1').item.json.body.entry[0].messaging[0].message.attachments[0].type }}",
+                    "rightValue": "image",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "text"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        864,
+        1328
+      ],
+      "id": "ae222ea2-1cee-40e3-bb20-d9b92b928cda",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googlePalmApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n{\n  \"contents\": [{\n    \"parts\":[\n      {\"text\": \"Transcribe this audio تماما كما ينطقها العميل\"},\n      {\"inlineData\": {\n        \"mimeType\": `audio/${$binary.data.fileExtension}`,\n        \"data\": $input.item.binary.data.data }\n      }\n    ]\n  }]\n}\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2000,
+        976
+      ],
+      "id": "a42534b8-9787-4454-8ba7-55a48cc96b06",
+      "name": "transcribe",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "5p0YKMLaCVAAMklV",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $('If2').item.json.body.entry[0].messaging[0].message.attachments[0].payload.url }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1728,
+        976
+      ],
+      "id": "b9a1e0c8-ec66-49d7-a795-70c6900639ec",
+      "name": "download audio"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.attachment_url_for_dashboard }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1728,
+        1312
+      ],
+      "id": "dbb53a73-107d-479f-a75a-d84a7c7f1559",
+      "name": "download image"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "describe what you see in the image in details باللغه العربيه فقط .  رد بهذه الصيغه : \"ارسل العميل صوره و هذا وصفها : ",
+        "messages": {
+          "messageValues": [
+            {
+              "message": " "
+            },
+            {
+              "type": "HumanMessagePromptTemplate",
+              "messageType": "imageBinary"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [
+        2048,
+        1296
+      ],
+      "id": "24230508-e7bc-45d1-8c75-ce4f530ecd2c",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.0-flash",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        2112,
+        1472
+      ],
+      "id": "65bed1ed-25bd-4439-8255-2d74f0577bf5",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "5p0YKMLaCVAAMklV",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 0
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2000,
+        1616
+      ],
+      "id": "51654b81-29ef-4617-bd6b-da23e13fcee6",
+      "name": "Wait",
+      "webhookId": "58ab43b0-e963-47e2-b492-1a891539504a"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3472,
+        1296
+      ],
+      "id": "d9b2339b-b8e1-4f6f-8cea-c805b031a284",
+      "name": "Wait1",
+      "webhookId": "74edc2c0-8856-4f9e-9bf7-6e6008151c2b"
+    },
+    {
+      "parameters": {
+        "sortFieldsUi": {
+          "sortField": [
+            {
+              "fieldName": "id"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.sort",
+      "typeVersion": 1,
+      "position": [
+        3840,
+        1296
+      ],
+      "id": "14884bec-8f41-48fc-b5b2-2d903b5643cf",
+      "name": "Sort"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4e2d4eee-1aaf-40d5-a6b4-0e7ee44acd1e",
+              "leftValue": "={{ $input.last().json.message_id }}",
+              "rightValue": "={{ $('Edit Fields2').item.json.message_id }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4064,
+        1296
+      ],
+      "id": "d4ddb1d3-1784-4158-a90b-af0aa55cde4c",
+      "name": "If"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        4288,
+        1408
+      ],
+      "id": "ddbac319-9239-4d5a-a11c-6b8ec73f92b2",
+      "name": "No Operation, do nothing"
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "message"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        4512,
+        1216
+      ],
+      "id": "6f6f62ca-23d7-4b41-a349-edc222ec4818",
+      "name": "Aggregate"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      body: $('Aggregate').first().json.message.join(\"  \") // Directly assign the joined string\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4944,
+        1200
+      ],
+      "id": "0afcc60b-cdf3-4131-bd9b-5f2da3b7d570",
+      "name": "Code1"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Edit Fields1').item.json.id }}",
+        "tableName": "new_history",
+        "contextWindowLength": 50
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        5424,
+        1472
+      ],
+      "id": "4bfe77e5-9a18-441f-8342-45af58efb146",
+      "name": "Postgres Chat Memory",
+      "credentials": {
+        "postgres": {
+          "id": "FcuJ8Rct7wdIZCEs",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "queue",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "sender_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Edit Fields4').item.json.platform_user_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3632,
+        1296
+      ],
+      "id": "3dd96760-cc79-4fd8-9a50-906e58753fa4",
+      "name": "Supabase2",
+      "credentials": {
+        "supabaseApi": {
+          "id": "fvAiH6qSNKJzuxTU",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "728b2c0a-ef62-4d3a-868e-164b68053a78",
+              "name": "usermessage",
+              "value": "={{ $json.message }}",
+              "type": "string"
+            },
+            {
+              "id": "64e819e2-0d0b-4af0-b5c1-13885de2c092",
+              "name": "id",
+              "value": "={{ $('Webhook1').item.json.body.entry[0].messaging[0].sender.id }}",
+              "type": "string"
+            },
+            {
+              "id": "9c70d4d4-52dd-429e-9a3b-69fb33c7c965",
+              "name": "contact_uuid",
+              "value": "={{ $('Edit Fields2').item.json.uuid }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4720,
+        1216
+      ],
+      "id": "2d918ade-63b7-421e-8386-df1c0dc7170b",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "tableId": "queue",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "sender_id",
+              "fieldValue": "={{ $('Webhook1').item.json.body.entry[0].messaging[0].sender.id }}"
+            },
+            {
+              "fieldId": "message",
+              "fieldValue": "={{ $('Webhook1').item.json.body.entry[0].messaging[0].message.text }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2304,
+        1616
+      ],
+      "id": "42fd5200-7cf6-48c0-b852-272e61cde6d3",
+      "name": "Supabase3",
+      "credentials": {
+        "supabaseApi": {
+          "id": "fvAiH6qSNKJzuxTU",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "queue",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "sender_id",
+              "fieldValue": "={{ $('Switch').item.json.platform_user_id }}"
+            },
+            {
+              "fieldId": "message",
+              "fieldValue": "={{ $json.text_content }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2640,
+        1296
+      ],
+      "id": "74be5411-00ee-4003-9886-5d4cb3fd99b4",
+      "name": "Supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "fvAiH6qSNKJzuxTU",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "message_queue",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "sender_id",
+              "fieldValue": "={{ $('Webhook1').item.json.body.entry[0].messaging[0].sender.id }}"
+            },
+            {
+              "fieldId": "message",
+              "fieldValue": "={{ $('transcribe').item.json.candidates[0].content.parts[0].text }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2432,
+        976
+      ],
+      "id": "81e396c9-7d87-4a65-8a75-83197de1cd2f",
+      "name": "Supabase4",
+      "credentials": {
+        "supabaseApi": {
+          "id": "fvAiH6qSNKJzuxTU",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1c4c4875-71b4-4638-b0c5-91eefeec85c5",
+              "name": "message_id",
+              "value": "={{ $json.message_id }}",
+              "type": "string"
+            },
+            {
+              "id": "bac0da0b-a426-48fe-8605-937c4a2cb12b",
+              "name": "uuid",
+              "value": "={{ $('Edit Fields4').item.json.contact_uuid }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3248,
+        1296
+      ],
+      "id": "3bd754b8-44fd-4aa4-8bb3-49daf89f84d7",
+      "name": "Edit Fields2"
+    },
+    {
+      "parameters": {
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v22.0",
+        "node": "me",
+        "edge": "messages",
+        "options": {
+          "queryParametersJson": "={{ $json.body }}"
+        }
+      },
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        6400,
+        1216
+      ],
+      "id": "fa6d60fe-6ef0-492b-9901-b84a11fb8ce5",
+      "name": "Facebook Graph API",
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "oAQrGOvia35iTMmQ",
+          "name": "trendmart"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a373b28a-9b9a-4a6b-8f80-53b75b289a08",
+              "name": "reply",
+              "value": "={{ $json.output }}",
+              "type": "string"
+            },
+            {
+              "id": "d723ec8b-d1b5-4aea-a5df-e33686f4f66e",
+              "name": "sender",
+              "value": "={{ $('Webhook1').item.json.body.entry[0].messaging[0].sender.id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        5744,
+        1216
+      ],
+      "id": "6e34abc9-17e3-429b-9848-78c04f6fb838",
+      "name": "Edit Fields3"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "tableId": "queue",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "sender_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.sender_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        4288,
+        1216
+      ],
+      "id": "1fc9980e-582b-4f29-93a9-c6480d85fb4e",
+      "name": "Supabase1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "fvAiH6qSNKJzuxTU",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      body: JSON.stringify({\n        recipient: {id: $('Edit Fields3').first().json.sender},\n        message: {text:$input.first().json.text_content },\n        messaging_type: \"RESPONSE\"\n      })\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6192,
+        1216
+      ],
+      "id": "7164d097-d626-428c-9357-8411b8b32ebd",
+      "name": "Code2"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "trendmart",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1104,
+        1152
+      ],
+      "id": "6ed0a97b-98c3-4e81-a013-40fdf6716978",
+      "name": "Webhook1",
+      "webhookId": "b927f407-43ac-4b35-97ec-1027aa72b6ed"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "54dee389-bf88-4f9c-8ebb-9c9c62416a87",
+              "leftValue": "={{ $json.body.object }}",
+              "rightValue": "page",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "01f60f65-31a2-4054-9dcd-012f700f19ee",
+              "leftValue": "={{ $json.body.entry[0].changes[0].field }}",
+              "rightValue": "feed",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "c3760d5c-b35f-48bd-bdfd-b1726217f41b",
+              "leftValue": "={{ $json.body.entry[0].changes[0].value.item }}",
+              "rightValue": "comment",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "49536692-93dc-4473-aaf2-b945579b092e",
+              "leftValue": "={{ $json.body.entry[0].changes[0].value.verb }}",
+              "rightValue": "add",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "423851e5-5be5-48d4-9163-93e62235aca4",
+              "leftValue": "={{ $json.body.entry[0].changes[0].value.from.id }}",
+              "rightValue": "={{ $json.body.entry[0].id }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -656,
+        896
+      ],
+      "id": "2dc36f83-b2be-40dd-ab91-d83d382907a6",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "15840194-c54e-49ba-9a78-a65f64ed920d",
+              "name": "pageID",
+              "value": "={{ $json.body.entry[0].id }}",
+              "type": "string"
+            },
+            {
+              "id": "aad7daa0-39b4-4256-b869-76db12cde47b",
+              "name": "commentID",
+              "value": "={{ $json.body.entry[0].changes[0].value.comment_id }}",
+              "type": "string"
+            },
+            {
+              "id": "36aafcc7-8e8f-4e4b-bfdc-47862b68f249",
+              "name": "commenterPSID",
+              "value": "={{ $json.body.entry[0].changes[0].value.from.id }}",
+              "type": "string"
+            },
+            {
+              "id": "62a423cb-d179-4f42-93c9-70f18818169f",
+              "name": "message",
+              "value": "={{ $json.body.entry[0].changes[0].value.message }}",
+              "type": "string"
+            },
+            {
+              "id": "30b3e706-74c8-46f9-8614-045b66c8bed7",
+              "name": "postID",
+              "value": "={{ $json.body.entry[0].changes[0].value.post_id }}",
+              "type": "string"
+            },
+            {
+              "id": "e9570135-1459-43f3-9048-ec72a42860c5",
+              "name": "commenterNAME",
+              "value": "={{ $json.body.entry[0].changes[0].value.from.name }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -528,
+        736
+      ],
+      "id": "5e848b62-0d74-45d6-b58e-b34ca83a762a",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v22.0/{{ $('Edit Fields').item.json.commentID }}/comments",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "=Thanks @[{{ $('Edit Fields').item.json.commenterPSID }}] for your comment .. "
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        640
+      ],
+      "id": "a92f195a-60e3-447d-bb0e-ad692a4d37c1",
+      "name": "HTTP Request",
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "oAQrGOvia35iTMmQ",
+          "name": "trendmart"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        1072
+      ],
+      "id": "761c650c-f452-4e3f-84b7-f13c22c2c021",
+      "name": "No Operation, do nothing1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/{{ $('Edit Fields').item.json.pageID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"recipient\": {\n    \"comment_id\": \"{{ $('Edit Fields').item.json.commentID }}\"\n  },\n  \"message\": {\n    \"text\": \"Hi! Following up privately about your commen\" \n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2144,
+        640
+      ],
+      "id": "3064d26d-1f49-4732-ae9c-5eb6f3e61145",
+      "name": "HTTP Request1",
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "oAQrGOvia35iTMmQ",
+          "name": "trendmart"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "انت تحدد اذا كان الكونت سلبي يحتوى علي نقض او اي اساءه. فقط بكلمه واحده delete اذا كان يجب الحذف او keep اذا كان لا يتطلب الحذف"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [
+        -240,
+        560
+      ],
+      "id": "24bea868-e229-42cf-b4b9-7b18d37e7221",
+      "name": "Basic LLM Chain1"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.0-flash-lite",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -176,
+        880
+      ],
+      "id": "24acd446-84eb-4e05-ae9b-191060d7e1f5",
+      "name": "Google Gemini Chat Model2",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "5p0YKMLaCVAAMklV",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.text }}",
+                    "rightValue": "keep",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "ea91fc1b-4904-43ef-8b33-0316d29afdbf"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "44de34ad-7886-42a5-822e-5e0b5cc08ac1",
+                    "leftValue": "={{ $json.text }}",
+                    "rightValue": "delete",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        192,
+        656
+      ],
+      "id": "1329d62a-48e3-40b1-bf1c-281db36493d9",
+      "name": "Switch1"
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "=https://graph.facebook.com/v22.0/{{ $('Edit Fields').item.json.commentID }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        464,
+        848
+      ],
+      "id": "6feeced4-251a-44c5-b284-5867df5c2c97",
+      "name": "HTTP Request2",
+      "retryOnFail": true,
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "oAQrGOvia35iTMmQ",
+          "name": "trendmart"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ea20a67d-55e0-41ea-a402-880adf7a8fda",
+              "leftValue": "={{ $json.body.entry[0].changes[0].value.item }}",
+              "rightValue": "comment",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -880,
+        1152
+      ],
+      "id": "39e16daa-1e3d-46bf-9c68-814bd7cc39bf",
+      "name": "If3"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1fdc7dc3-a63d-4425-a3c5-008ff78a4f0b",
+              "leftValue": "={{ $json.body.entry[0].messaging[0].message }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -656,
+        1408
+      ],
+      "id": "9e767803-8f17-4f55-a5ad-a6fe4aa37ce8",
+      "name": "If2"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -448,
+        1520
+      ],
+      "id": "4de1f971-3ba3-4a3e-a28e-01bbc367685a",
+      "name": "No Operation, do nothing2"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "client_id",
+              "keyValue": "={{ $('Edit Fields').item.json.commenterPSID }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        448,
+        528
+      ],
+      "id": "0971781b-9b8a-47d8-b6da-c426e82bafb1",
+      "name": "Supabase5",
+      "alwaysOutputData": true,
+      "notesInFlow": false,
+      "credentials": {
+        "supabaseApi": {
+          "id": "fvAiH6qSNKJzuxTU",
+          "name": "Supabase account 2"
+        }
+      },
+      "notes": "error"
+    },
+    {
+      "parameters": {
+        "tableId": "leads",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "client_id",
+              "fieldValue": "={{ $('Edit Fields').item.json.commenterPSID }}"
+            },
+            {
+              "fieldId": "client_name",
+              "fieldValue": "={{ $('Edit Fields').item.json.commenterNAME }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1152,
+        640
+      ],
+      "id": "0462ee80-ed28-4397-95ed-3364adbc0cb3",
+      "name": "Supabase6",
+      "credentials": {
+        "supabaseApi": {
+          "id": "fvAiH6qSNKJzuxTU",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "eae2a207-bba2-457c-84b9-62073ff8bddf",
+              "leftValue": "={{ $json.client_id }}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": "={{ true }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        768,
+        528
+      ],
+      "id": "2202df47-8375-4559-b59a-f669ca819128",
+      "name": "If5"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "bb71fd16-7def-4b3b-ab4b-b4d2fd4e4322",
+              "name": "platform",
+              "value": "facebook",
+              "type": "string"
+            },
+            {
+              "id": "c86bf29f-9e54-4e65-9af9-907ab839099d",
+              "name": "platform_user_id",
+              "value": "={{ $json.body.entry[0].messaging[0].sender.id }}",
+              "type": "string"
+            },
+            {
+              "id": "efe8efcc-d789-4e62-be6c-3f17d7cff4a0",
+              "name": "message_platform_id",
+              "value": "={{ $json.body.entry[0].messaging[0].message.mid }}",
+              "type": "string"
+            },
+            {
+              "id": "8cfa1a7b-994b-421b-9c11-0a053f015829",
+              "name": "message_platform_timestamp",
+              "value": "={{ DateTime.fromMillis(parseInt($json.body.entry[0].messaging[0].timestamp)).toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "af0fe570-096e-46ab-8d34-0557987650a8",
+              "name": "user_name",
+              "value": "(Placeholder)",
+              "type": "string"
+            },
+            {
+              "id": "19ede155-a2da-4449-bca4-2967e29a3ad5",
+              "name": "user_avatar_url",
+              "value": "(Placeholder)",
+              "type": "string"
+            },
+            {
+              "id": "30a9ae2a-b070-4749-89d0-605c20ba7300",
+              "name": "original_message_text",
+              "value": "={{ $json.body.entry[0].messaging[0].message.text }}",
+              "type": "string"
+            },
+            {
+              "id": "fd36820a-a072-41a9-a76a-f8e20155f9be",
+              "name": "original_attachments",
+              "value": "={{ $json.body.entry[0].messaging[0].message.attachments[0].payload.url }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -448,
+        1312
+      ],
+      "id": "3b3d833b-9fbc-4e1f-a755-6a1176f4ba67",
+      "name": "Edit Fields5"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "contacts",
+        "returnAll": true,
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "platform_user_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Edit Fields5').item.json.platform_user_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -144,
+        1312
+      ],
+      "id": "866c45e3-5164-479d-8fc1-7fe552580429",
+      "name": "Supabase7",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "fvAiH6qSNKJzuxTU",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "5484e68b-7fb5-4d24-9df7-d34c575fc807",
+              "leftValue": "={{ $('Supabase7').item.json.isEmpty()}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        144,
+        1312
+      ],
+      "id": "2501d8a9-bb51-41ee-b832-d624fc89f720",
+      "name": "If6"
+    },
+    {
+      "parameters": {
+        "tableId": "contacts",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "platform",
+              "fieldValue": "={{ $('Edit Fields5').item.json.platform }}"
+            },
+            {
+              "fieldId": "platform_user_id",
+              "fieldValue": "={{ $('Edit Fields5').item.json.platform_user_id }}"
+            },
+            {
+              "fieldId": "name",
+              "fieldValue": "={{ $json.platform_user_id }}"
+            },
+            {
+              "fieldId": "avatar_url",
+              "fieldValue": "="
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        400,
+        1200
+      ],
+      "id": "f4b56453-29ca-4958-bd99-5baad91661f9",
+      "name": "Supabase8",
+      "credentials": {
+        "supabaseApi": {
+          "id": "fvAiH6qSNKJzuxTU",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6bfbf2a6-5a06-4118-8620-bbd72cf4220d",
+              "name": "content_type",
+              "value": "text",
+              "type": "string"
+            },
+            {
+              "id": "540d9446-0c1b-4d7b-8fa6-a75dd7df8b68",
+              "name": "message_text_for_dashboard",
+              "value": "={{ $('Edit Fields5').item.json.original_message_text }}",
+              "type": "string"
+            },
+            {
+              "id": "a9423db2-d873-4a95-8c59-ab8c665a5c0f",
+              "name": "attachment_url_for_dashboard",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "b0f341b8-fb05-4929-8dbe-798c0df0684c",
+              "name": "message_for_queue",
+              "value": "={{ $('Edit Fields5').item.json.original_message_text }}",
+              "type": "string"
+            },
+            {
+              "id": "a5e2bbaa-3670-4e06-9668-ae32e9d1a58b",
+              "name": "contact_uuid",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "080cd7f9-d2db-4df2-9a11-23787d6befd1",
+              "name": "platform_timestamp",
+              "value": "={{ $('Edit Fields5').item.json.message_platform_timestamp }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1392,
+        1616
+      ],
+      "id": "81f650c5-3bf0-425e-9afc-f3f3b24a9b78",
+      "name": "Edit Fields6"
+    },
+    {
+      "parameters": {
+        "tableId": "messages",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "contact_id",
+              "fieldValue": "={{ $json.contact_uuid }}"
+            },
+            {
+              "fieldId": "message_platform_id",
+              "fieldValue": "={{ $('Edit Fields5').item.json.message_platform_id }}"
+            },
+            {
+              "fieldId": "sender_type",
+              "fieldValue": "user"
+            },
+            {
+              "fieldId": "content_type",
+              "fieldValue": "={{ $json.content_type }}"
+            },
+            {
+              "fieldId": "text_content",
+              "fieldValue": "={{ $json.message_text_for_dashboard }}"
+            },
+            {
+              "fieldId": "attachment_url",
+              "fieldValue": "={{ $json.attachment_url_for_dashboard }}"
+            },
+            {
+              "fieldId": "platform_timestamp",
+              "fieldValue": "={{ $json.platform_timestamp }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1712,
+        1616
+      ],
+      "id": "a3e38cef-dabe-4ee2-b3d1-f94e05b03048",
+      "name": "Supabase10",
+      "credentials": {
+        "supabaseApi": {
+          "id": "fvAiH6qSNKJzuxTU",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b2be1936-4832-4628-b97a-80d0573e3091",
+              "name": "contact_uuid",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "f79e3551-5df7-41ad-978e-185cf81894e1",
+              "name": "ai_enabled",
+              "value": "={{ $json.ai_enabled }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        672,
+        1328
+      ],
+      "id": "0a502fc7-e95f-44e8-9cb8-3325975e270f",
+      "name": "Edit Fields4"
+    },
+    {
+      "parameters": {
+        "tableId": "messages",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "contact_id",
+              "fieldValue": "={{ $('Edit Fields1').item.json.contact_uuid }}"
+            },
+            {
+              "fieldId": "message_platform_id",
+              "fieldValue": "={{ $('Edit Fields5').item.json.message_platform_id }}"
+            },
+            {
+              "fieldId": "sender_type",
+              "fieldValue": "ai"
+            },
+            {
+              "fieldId": "content_type",
+              "fieldValue": "text"
+            },
+            {
+              "fieldId": "text_content",
+              "fieldValue": "={{ $json.reply }}"
+            },
+            {
+              "fieldId": "platform_timestamp",
+              "fieldValue": "={{ DateTime.now().toISO() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        5968,
+        1216
+      ],
+      "id": "63cfc5f6-d448-4e80-8f07-b03c9ca2782a",
+      "name": "Supabase11",
+      "credentials": {
+        "supabaseApi": {
+          "id": "fvAiH6qSNKJzuxTU",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e97c3ba4-f6a3-4961-963f-b4b31ec4e4bd",
+              "name": "content_type",
+              "value": "image",
+              "type": "string"
+            },
+            {
+              "id": "194528e2-cc1e-47f7-9154-59eb8b804b9f",
+              "name": "message_text_for_dashboard",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "e8020b66-89d4-4f12-9168-f31b74e24f90",
+              "name": "attachment_url_for_dashboard",
+              "value": "={{ $('Edit Fields5').item.json.original_attachments }}",
+              "type": "string"
+            },
+            {
+              "id": "98374319-0fcb-4f7a-9813-41fe2bd7861d",
+              "name": "message_for_queue",
+              "value": "[Image Description Pending]",
+              "type": "string"
+            },
+            {
+              "id": "295b7839-8684-4349-bae1-6ff210dbaa5c",
+              "name": "contact_uuid",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "10669db8-8b5e-4598-bc0a-0d44021eed28",
+              "name": "platform_user_id",
+              "value": "={{ $json.platform_user_id }}",
+              "type": "string"
+            },
+            {
+              "id": "116e103a-54d9-454a-9557-9e44eb509fd6",
+              "name": "message_platform_id",
+              "value": "={{ $('Edit Fields5').item.json.message_platform_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1344,
+        1312
+      ],
+      "id": "eda90932-687a-40d6-b6fc-4656fe319cc0",
+      "name": "Edit Fields7"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d5d74ba8-defa-48cf-9953-c15a47481b3b",
+              "name": "content_type",
+              "value": "audio",
+              "type": "string"
+            },
+            {
+              "id": "ffc48e85-b4e9-49e3-9479-cfd20585677a",
+              "name": "message_text_for_dashboard",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "bcb54c25-bd65-4af1-95cc-9a01ec93d526",
+              "name": "attachment_url_for_dashboard",
+              "value": "={{ $('Edit Fields5').item.json.original_attachments }}",
+              "type": "string"
+            },
+            {
+              "id": "c330ba2d-9196-4ec2-8055-2f7a7db5cfbc",
+              "name": "message_for_queue",
+              "value": "[Audio Transcription Pending]",
+              "type": "string"
+            },
+            {
+              "id": "f49bfc30-8849-45e6-b0e1-438aacfe7d85",
+              "name": "contact_uuid",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "3e7140e5-6274-4a4e-b009-5adffd50bf63",
+              "name": "platform_user_id",
+              "value": "={{ $json.platform_user_id }}",
+              "type": "string"
+            },
+            {
+              "id": "f6179c8c-d0d3-4d64-ad17-1824ff6b67ee",
+              "name": "message_platform_id",
+              "value": "={{ $('Edit Fields5').item.json.message_platform_id }}",
+              "type": "string"
+            },
+            {
+              "id": "e724e33e-5c1c-4465-a388-84fe709f6fb9",
+              "name": "message_platform_timestamp",
+              "value": "={{ $('Edit Fields5').item.json.message_platform_timestamp }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1392,
+        992
+      ],
+      "id": "eaa0e965-09a9-47bf-bc1b-c2aeb50abfec",
+      "name": "Edit Fields8"
+    },
+    {
+      "parameters": {
+        "tableId": "messages",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "contact_id",
+              "fieldValue": "={{ $('Edit Fields8').item.json.id }}"
+            },
+            {
+              "fieldId": "message_platform_id",
+              "fieldValue": "={{ $('Edit Fields5').item.json.message_platform_id }}"
+            },
+            {
+              "fieldId": "sender_type",
+              "fieldValue": "user"
+            },
+            {
+              "fieldId": "content_type",
+              "fieldValue": "={{ $('download audio').item.json.content_type }}"
+            },
+            {
+              "fieldId": "attachment_url",
+              "fieldValue": "={{ $('Edit Fields8').item.json.attachment_url_for_dashboard }}"
+            },
+            {
+              "fieldId": "platform_timestamp",
+              "fieldValue": "={{ $('download audio').item.json.message_platform_timestamp }}"
+            },
+            {
+              "fieldId": "text_content",
+              "fieldValue": "={{ $json.candidates[0].content.parts[0].text }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2224,
+        976
+      ],
+      "id": "7d1ae539-988f-4b91-972f-a0ace5637c92",
+      "name": "Supabase14",
+      "credentials": {
+        "supabaseApi": {
+          "id": "fvAiH6qSNKJzuxTU",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "messages",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "contact_id",
+              "fieldValue": "={{ $('Edit Fields7').item.json.contact_uuid }}"
+            },
+            {
+              "fieldId": "message_platform_id",
+              "fieldValue": "={{ $('Edit Fields7').item.json.message_platform_id }}"
+            },
+            {
+              "fieldId": "sender_type",
+              "fieldValue": "user"
+            },
+            {
+              "fieldId": "content_type",
+              "fieldValue": "={{ $('Edit Fields7').item.json.content_type }}"
+            },
+            {
+              "fieldId": "attachment_url",
+              "fieldValue": "={{ $('Edit Fields7').item.json.attachment_url_for_dashboard }}"
+            },
+            {
+              "fieldId": "platform_timestamp",
+              "fieldValue": "={{ $('Edit Fields5').item.json.message_platform_timestamp }}"
+            },
+            {
+              "fieldId": "text_content",
+              "fieldValue": "={{ $json.text }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2464,
+        1296
+      ],
+      "id": "936ec9f3-cb4c-4af6-aa0c-44bb2514688c",
+      "name": "Supabase12",
+      "credentials": {
+        "supabaseApi": {
+          "id": "fvAiH6qSNKJzuxTU",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a5d0d964-730f-4e01-99f0-cecb4fea5c2f",
+              "leftValue": "={{ $('Edit Fields4').item.json.ai_enabled }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2992,
+        1312
+      ],
+      "id": "f6dc55f9-9a90-41ef-a59e-fb9adba3e65f",
+      "name": "If4"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        3312,
+        1600
+      ],
+      "id": "c84988ab-de8e-4adf-be9e-4b2de16bf049",
+      "name": "No Operation, do nothing3"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "send-agent-facebook-message",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        32,
+        1920
+      ],
+      "id": "b6b7dbd9-9a76-4c0a-836d-b0ad75a9a8b1",
+      "name": "Webhook2",
+      "webhookId": "80f558a7-cdfc-4e06-93bb-a598c92883c6"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.message_type }}",
+                    "rightValue": "text",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "2d815f5b-2e7d-4511-a28f-737d3d3be255"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "6e7d4d5a-cda0-4299-a17d-fc58da126cc3",
+                    "leftValue": "={{ $json.body.message_type }}",
+                    "rightValue": "image",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        352,
+        1920
+      ],
+      "id": "ee615d58-bc0f-4c93-9e87-3d959a5b8775",
+      "name": "Switch2"
+    },
+    {
+      "parameters": {
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v22.0",
+        "node": "me",
+        "edge": "messages",
+        "options": {
+          "queryParametersJson": "={{ $json.body }}"
+        }
+      },
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        864,
+        1808
+      ],
+      "id": "b03b66d9-7bf5-42c9-8f92-0b14444695ae",
+      "name": "Facebook Graph API1",
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "oAQrGOvia35iTMmQ",
+          "name": "trendmart"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      body: JSON.stringify({\n        recipient: {id:$input.first().json.body.recipient_id },\n        message: {text: $input.first().json.body.text_content},\n        messaging_type: \"RESPONSE\"\n      })\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        1808
+      ],
+      "id": "3879d100-c96a-4da8-b18a-94d5067fb4ee",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v22.0",
+        "node": "me",
+        "edge": "messages",
+        "options": {
+          "queryParametersJson": "={\n  \"recipient\": {\n    \"id\": \"{{ $json.body.recipient_id }}\"\n  },\n  \"message\": {\n    \"attachment\": {\n      \"type\": \"image\",\n      \"payload\": {\n        \"url\": \"{{ $json.body.attachment_url }}\",\n        \"is_reusable\": true\n      }\n    }\n  },\n  \"messaging_type\": \"RESPONSE\"\n} "
+        }
+      },
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        864,
+        2016
+      ],
+      "id": "6bf2a1ca-ddf8-40a1-b0be-bd049d09868f",
+      "name": "Facebook Graph API2",
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "oAQrGOvia35iTMmQ",
+          "name": "trendmart"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "7964387f-0731-4d71-a241-5a7cc4abac6c",
+              "leftValue": "={{ $('If1').item.json.body.entry[0].changes[0].value.post_id }}",
+              "rightValue": "={{ $('If1').item.json.body.entry[0].changes[0].value.parent_id }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1184,
+        400
+      ],
+      "id": "aef0f408-470d-48c7-b417-868054c66131",
+      "name": "If7"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1680,
+        320
+      ],
+      "id": "203ad076-95ff-4671-bf20-ab8f025a74c2",
+      "name": "No Operation, do nothing4"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body }}",
+        "options": {
+          "systemMessage": "=جاوب كانك موظف خدمة عملاء ودود جداً ومتعاون في عيادة أسنان 😁🦷. الردود كلها باللغة العربية باللهجة العامية المصرية. خليك مختصر ومفيد في إجاباتك على استفسارات الناس. لا تذكر أي أسعار إلا لو اتسألت عن سعر خدمة معينة بوضوح 💰. تجنب كلمة 'عميل' تماماً وبلاش كلام رسمي زيادة عن اللزوم زي الروبوتات، خليك طبيعي كأنك بتتكلم عادي. اتكلم دايماً باحترام وود، واستخدم كلمات زي 'يا فندم'، 'تحت أمرك'، 'حضرتك' في أول الكلام أو آخره حسب الموقف. استخدم دائما إيموجيز مناسبة (زي 😊👍✨🦷 و كل المتاح) بشكل طبيعي عشان الرد يكون لطيف ومرحب أكتر. لو حد سأل عن مشكلة في أسنانه، حاول تطمنه وتقترح حلول ممكنة بأسلوب بسيط. لو ارسل العميل صوره لك سيصلك وصف للصوره التي أرسلها لترد علي الصوره و كانك رأيتها و حللت ما بها و لا تزكر اي شئ عن الوصف الذي وصلك فقط استعمله لترد و كانك رأيتها.\nو عند الحجز استعمل هذه التعمليمات :\n\n**CRITICAL INSTRUCTIONS** AWAYS FOLLOW THESE INSTRUCTIONS WHILE IN BOOKING PROCESS\n\n**TIMEZONE PROTOCOL: ALWAYS operate using the Egypt timezone for ALL date and time interpretations and when interacting with calendar tools. All user inputs regarding time are assumed to be in Egypt Time. Do NOT ask users for their timezone.You will be given a time and may be asked to:\n\n**if you have the name and the number of the client dont ask for him again, you will write them in the confirmation message to the client to confirm even booking creating , cancelation , or retrieving.\n\n- Check availability\n- Create a booking\n- Retrieve upcoming booking information\n- Cancel an existing booking\n- Reschedule an existing booking\n\nSOME INFORMATIONS:\n1- each booking slot is 30 MINUTES\n2- WORKING HOURS : SATERDAY , MONDAY , WEDNSDAY FORM 4:00PM TO 9:00P .\n3- ALWAYS BE AWARE OF NUMBER OF DAYES IN EVERY MONTH SO YOU CAN RESOLVE DATE and DAY CORRESPONDING DATE ACCURATELY here is the calender of this year 2025 :\nJanuary:31\nFebruary:28\nMarch:31\nApril:30\nMay:31\nJune:30\nJuly:31\nAugust:31\nSeptember:30\nOctober:31\nNovember:30\nDecember:31\n\n## 1. Checking Availability:\n- When a user inquires about availability (e.g., \"Is Monday 5 PM available?\", \"What times are free next Wednesday?\"):\n    1. Your first step is to use the 'check availability tool'. Instruct the tool to **return ALL currently scheduled bookings** for the entire specific day(s) the user is asking about. This gives you a complete picture.\n    2. Once you have the list of all booked slots for that day from the tool:\n        a. **Inform the user of ALL these existing booked time slots.** For example: \"يا فندم، بالنسبة ليوم الإثنين، الأوقات المحجوزة حالياً هي ٤:٠٠م و ٥:٣٠م و ٧:٠٠م 🗓️.\" This fulfills the requirement to \"return all bookings\" and provides full transparency.\n        b. **Then, address their specific question:**\n            i. If they asked for a *specific time*: Based on the list, tell them if it's available or (as they now know) booked. If available, ask if they want to book it. If booked, move to suggesting alternatives.\n            ii. If they asked for *general availability* (e.g., \"What's free?\"): List all the 30-minute *available* slots for that day, considering the working hours (Sat, Mon, Wed 4 PM - 9 PM) and the booked slots you just mentioned.\n- This is the current date and time now in Africa/Cairo for your understanding:\n  {{ DateTime.now().setZone(\"UTC+3\").toISO() }}\n- You **must resolve any relative date expressions** like \"tomorrow\", \"next Friday\", or \"this weekend\" by referencing the current date above.\n- Convert **all interpreted dates** into strict ISO 8601 format: 'YYYY-MM-DDTHH:MM:SSZHH:MM', where the offset is '+02:00' or '+03:00' depending on daylight saving time in Cairo.\n- After following the steps above (getting all bookings, informing user of booked slots, and assessing their specific request):\n  - If a suitable, available time is identified and the user wants to proceed: move to **Creating a Booking**.\n  - If their initial request was for a booked time, or if suitable alternatives need to be found:\n    - Suggest nearby available slots on the same day.\n    - If the entire day is unavailable (all slots are booked) or very limited: check for availability at similar times on the next working day(s) and offer those options.\n  - Never return blank output if slots are theoretically possible.\n  - Once the user confirms an acceptable time, proceed to booking in the next step.\n\n## 2. Creating a Booking:\n- Only proceed with creating a booking if the requested time has been confirmed available and with these informations , NAME , MOBILE NUMBER, REASON OF THE BOOKING , and the time of the booking.\n- Use the 'create booking tool' to schedule the appointment at that time.\n- add the Name and the Reason of booking and mobile number as summary, and add them plus the NOTES if the client have any in the DESCRIPTION.\n- IF THE BOOKING IS SUCCESSFULLY CREATED BY CALLING 'create booking tool' Confirm the successful creation of the booking to the user.\n- Never create a booking for a time that was not explicitly confirmed as available.\n\n## 3. Retrieving Existing Booking Info:\n- Use the 'check availability tool' when the user asks about existing or upcoming bookings, you must \"return all\" bookings in the asked date to find the booking by the NAME or MOBILE NUMBER in the description and summery of the booking.\n- if the client asked about his upcoming bookings , directly use 'get booking information' and return all to find all the client's bookings.\n- If there are no upcoming bookings: clearly inform the user.\n- If there is **one upcoming booking**: store the `eventId` for use in cancellation or rescheduling if needed.\n- If there are **multiple upcoming bookings**: list them all with numbers (including time and description/summery), and ask the user to specify which one they want to act on.\n\n## 4. Cancelling a Booking/s:\n- Before cancelling, ensure you have the `eventId` of the specific booking from 'check availability tool'.\n- If only one upcoming booking exists: use the 'cancel booking tool' immediately - no need to ask the user.\n- If multiple bookings exist:\n  - Ask the user and wait for them to specify which one to cancel based on the list shown.\n  - Provide a list including the datetime of each booking.\n- Once cancelled: confirm the cancellation to the user.\n- if the user want to cancel more than one booking, tell him that you can cancel one booking every time and he can choose booking after other to cancel, so cancel one by one.\n\n\n\n## 5. Rescheduling a Booking:\n- Before rescheduling, ensure you have the `eventId` of the existing booking from the previous step.\n- Ask the user for the new desired date and time.\n- Resolve natural date expressions as in Step 1 and format the date strictly as 'YYYY-MM-DDTHH:MM:SSZHH:MM'.\n- Use the 'check availability tool' to verify if the new time is available.\n- **If the new time is available:**\n    1. Call the 'update calling tool' with the `eventId` to update the booking time or informations.\n    2. **Only after updating  the old booking is confirmed successful by the respective tool,** then inform the user. The confirmation message should be a single, consolidated update. Example: \"تمام يا فندم، تم إلغاء حجز حضرتك القديم وتأكيد الحجز الجديد في [الوقت والتاريخ الجديد] بنجاح ✨.\"\n- **If the new time is not available:** inform the user that the requested new time is unavailable, and suggest alternative nearby slots (following logic from Step 1). Do NOT cancel the existing booking if the new time is unavailable.\n\n\n## General Instructions:\n- Be clear, concise, and confirm every step and result.\n- Resolve all user-specified time references (e.g., \"tomorrow\", \"next Monday\") using the current date from AEST/AEDT timezone.\n- Format all time parameters exactly as: 'YYYY-MM-DDTHH:MM:SSZHH:MM'\n- This format is required by **all tools** and must always use the correct UTC offset for Cairo time (+02:00 or +03:00).\n- Do *not* proceed with any action unless preconditions are met (e.g., don't cancel or reschedule without a `eventId`, don't book unavailable times).\n- never repley to the user until you call all the needed tools before reply.\n- never say wait to the user until you finish something , call tools first then reply directly.\n- never return empty reply.\n- VERY IMPORTANT NOTE **Crucially, do not communicate any intermediate steps or uncertainties to the user like \"wait until i check for you\" or \"wait until i check the availability\" and so on , The user should only receive a confirmation once the entire process checking or updating of even deleting or creating bookings\n\nو هذه امثله ل شات سابق :\ninput: مواعيد العياده\noutput: مواعيدنا سبت واتنين وأربعاء من الساعة 4 عصرا لـ 9 مساءً 🗓️ تحت أمر حضرتك.\n\ninput: مكان العياده\noutput: مكان العيادة في أبراج الصيانة برج د 📍 تشرفنا يا فندم!\n\ninput: سعر حشو العصب\noutput: حشو العصب بيتراوح من 1200 جنيه لـ 2000 جنيه يا فندم، حسب الحالة 🦷.\n\ninput: سعر الحشو العادي\noutput: الحشو العادي بـ 500 جنيه يا فندم 😊.\n\ninput: سعر التنظيف\noutput: تنظيف الأسنان بـ 500 جنيه يا فندم ✨.\n\ninput: الحجز ، احجز، ممكن احجز ، الحجز ازاي ،\noutput: ممكن طبعاً يا فندم 😊. ممكن أعرف اسم حضرتك بالكامل، رقم التليفون، وسبب الزيارة عشان أقدر أساعدك في حجز الميعاد؟ وكمان ياريت تقوليلي اليوم والوقت المناسب لحضرتك.\n\ninput: تقويم\noutput: التقويم بيعتمد على الحالة يا فندم، الأفضل حضرتك تشرفنا للكشف والتقييم 👍.\n\ninput: انا سناني غامقه عايزه افتحها\noutput: يا فندم، فيه كذا حل لتفتيح الأسنان عشان ابتسامة أحلى ✨! ممكن تبييض بالليزر في العيادة، أو قوالب تبييض منزلية، أو حتى معجون أسنان مبيض. الأفضل طبعًا تشرفنا في العيادة ونعمل كشف ونشوف أنسب حل لحضرتك إيه بالظبط 😊.\n\ninput: هياخد كام جلسه ؟\noutput: يا فندم، عدد الجلسات بيتحدد بعد الكشف، عشان نعرف الحالة كويس ونحدد الخطة المناسبة ليها 👍.\n\ninput: هعرف اكل و اشرب يومها ؟\noutput: أيوة طبعًا يا فندم، هتقدر تاكل وتشرب عادي بعد الجلسة 😊. بس بننصح حضرتك تتجنب المشروبات والأكلات اللي بتصبغ الأسنان (زي القهوة والشاي والكولا والتدخين) لمدة 48 ساعة على الأقل عشان نحافظ على النتيجة الحلوة دي لأطول فترة ممكنة ✨.\n\ninput: ممكن اعمل تنظيف و تبييض في نفس اليوم ؟\noutput: أيوة ممكن يا فندم 👍، والأفضل نعمل التنظيف الأول وبعدين التبييض عشان النتيجة تكون أحسن على أسنان نظيفة ✨. ده اللي بنعمله عادةً.\n\ninput: ممكن اعمل تقويم شفاف ؟\noutput: أكيد يا فندم، التقويم الشفاف موجود عندنا 😊. ده بيكون عبارة عن قوالب شفافة بتتغير كل فترة لحد ما الأسنان توصل للشكل المطلوب 👌. ميزته إنه تقريبًا مش بيبان وممكن تشيله وقت الأكل. بس طبعًا لازم كشف الأول عشان نتأكد إنه مناسب لحالة حضرتك.\n\ninput: ممكن اعمل فينير ؟\noutput: طبعًا يا فندم، الفينير متوفر عندنا ✨. دي قشرة بورسلين رقيقة بتتحط على السن عشان تحسن شكله ولونه وتديكي ابتسامة جميلة وطبيعية 😁. بس لازم كشف الأول عشان نقيّم حالة أسنان حضرتك ونشوف إذا كان مناسب ولا لأ.\n\ninput: ممكن اعمل زراعه ؟\noutput: أكيد يا فندم، زراعة الأسنان متوفرة عندنا وهي حل ممتاز للأسنان المفقودة 👍. بنزرع جذر تيتانيوم صناعي مكان السن المفقود، وبعدين بنركب عليه التاج (السن). النتيجة بتكون سن ثابت وشكله ووظيفته طبيعية جدًا🦷. طبعًا محتاجين كشف وأشعة الأول عشان نقيم حالة العضم ونشوف إذا كانت الحالة مناسبة للزراعة.\n\ninput: ممكن اعمل تلبيسه ؟\noutput: أيوة طبعًا يا فندم، التلبيسات (التيجان) موجودة عندنا 👑. دي حل كويس للأسنان الضعيفة أو المكسورة أو بعد علاج العصب. بنحضر السن ونركب عليه تاج بيغطيه ويحميه ويرجعله شكله وقوته 💪. عندنا أنواع مختلفة زي البورسلين والزيركون. لازم كشف الأول طبعًا عشان نختار النوع المناسب لحضرتك.\n\ninput: ممكن اعمل حشو تجميلي ؟\noutput: أكيد يا فندم، الحشو التجميلي متوفر وبيكون بنفس لون السن الطبيعي بالظبط، مش بيبان خالص ✨. بنستخدمه للتسوس البسيط أو لإصلاح كسور صغيرة في الأسنان الأمامية. النتيجة بتكون طبيعية جدًا 😊. شرفنا بالزيارة للكشف ونشوف إذا كان مناسب لحضرتك.\n\ninput: ممكن اعمل تنظيف جير ؟\noutput: طبعًا يا فندم، تنظيف الجير متوفر ومهم جداً لصحة الفم واللثة ✨! التنظيف بيشيل الجير والتكلسات والصبغات، وبيحمي من أمراض اللثة والتسوس. بنستخدم أجهزة حديثة ومريحة 👍. بننصح بيه كل 6 شهور للحفاظ على أسنان صحية وابتسامة جميلة 😊.\n",
+          "maxIterations": 15,
+          "returnIntermediateSteps": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        5296,
+        1168
+      ],
+      "id": "bf561389-4c4e-44e6-90af-b7fbcfc2c5a2",
+      "name": "AI Agent",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash-preview-05-20",
+        "options": {
+          "temperature": 0.7
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        5264,
+        1488
+      ],
+      "id": "3e1167d5-3167-416e-b494-dd33c4599009",
+      "name": "Google Gemini Chat Model3",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "5p0YKMLaCVAAMklV",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields8",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields7",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "transcribe": {
+      "main": [
+        [
+          {
+            "node": "Supabase14",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "download audio": {
+      "main": [
+        [
+          {
+            "node": "transcribe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "download image": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Supabase12",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Supabase3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Supabase2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sort": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Supabase1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase2": {
+      "main": [
+        [
+          {
+            "node": "Sort",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase3": {
+      "main": [
+        [
+          {
+            "node": "If4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase": {
+      "main": [
+        [
+          {
+            "node": "If4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase4": {
+      "main": [
+        [
+          {
+            "node": "If4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields2": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields3": {
+      "main": [
+        [
+          {
+            "node": "Supabase11",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase1": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code2": {
+      "main": [
+        [
+          {
+            "node": "Facebook Graph API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "If3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain1": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [
+          {
+            "node": "Supabase5",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If3": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields5",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase5": {
+      "main": [
+        [
+          {
+            "node": "If5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase6": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If5": {
+      "main": [
+        [
+          {
+            "node": "If7",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Supabase6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields5": {
+      "main": [
+        [
+          {
+            "node": "Supabase7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase7": {
+      "main": [
+        [
+          {
+            "node": "If6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If6": {
+      "main": [
+        [
+          {
+            "node": "Supabase8",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase8": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields6": {
+      "main": [
+        [
+          {
+            "node": "Supabase10",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase10": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields4": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase11": {
+      "main": [
+        [
+          {
+            "node": "Code2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields7": {
+      "main": [
+        [
+          {
+            "node": "download image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields8": {
+      "main": [
+        [
+          {
+            "node": "download audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase14": {
+      "main": [
+        [
+          {
+            "node": "Supabase4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase12": {
+      "main": [
+        [
+          {
+            "node": "Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If4": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook2": {
+      "main": [
+        [
+          {
+            "node": "Switch2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch2": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Facebook Graph API2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Facebook Graph API1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If7": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Webhook1": [
+      {
+        "headers": {
+          "host": "ai-n8n.ddns.net",
+          "x-real-ip": "69.171.251.4",
+          "x-forwarded-for": "69.171.251.4",
+          "x-forwarded-proto": "https",
+          "connection": "upgrade",
+          "content-length": "308",
+          "accept": "*/*",
+          "accept-encoding": "deflate, gzip",
+          "user-agent": "facebookexternalua",
+          "content-type": "application/json",
+          "x-hub-signature": "sha1=c023dbd1da598ea656afe554411c22a537162f72",
+          "x-hub-signature-256": "sha256=36556203b97683e4a9621dc8e0abb6335f27a6d5f3698dacf9f21d96afe23c51",
+          "facebook-api-version": "v22.0"
+        },
+        "params": {},
+        "query": {},
+        "body": {
+          "object": "page",
+          "entry": [
+            {
+              "time": 1749257356032,
+              "id": "647215901805248",
+              "messaging": [
+                {
+                  "sender": {
+                    "id": "9937906482943298"
+                  },
+                  "recipient": {
+                    "id": "647215901805248"
+                  },
+                  "timestamp": 1749257354278,
+                  "message": {
+                    "mid": "m_0mVL2BrT2f7JFA7EoFolj5L-ZwXgyQuczEHLdlllvjb7NdUG5Gfx1-uvbzwipLJFMtluF2nPfYVqsRjc-C7BRA",
+                    "text": "Hi"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "webhookUrl": "https://ai-n8n.ddns.net/webhook/trendmart",
+        "executionMode": "production"
+      }
+    ],
+    "Webhook2": [
+      {
+        "headers": {
+          "host": "touching-reasonably-rooster.ngrok-free.app",
+          "user-agent": "Deno/1.45.2 (variant; SupabaseEdgeRuntime/1.67.3)",
+          "content-length": "130",
+          "accept": "*/*",
+          "accept-encoding": "gzip, br",
+          "accept-language": "*",
+          "content-type": "application/json",
+          "x-forwarded-for": "2a05:d012:fca:9501:123b:bfe0:26b5:5b8b",
+          "x-forwarded-host": "touching-reasonably-rooster.ngrok-free.app",
+          "x-forwarded-proto": "https"
+        },
+        "params": {},
+        "query": {},
+        "body": {
+          "recipient_id": "7561089183968131",
+          "message_type": "image",
+          "text_content": null,
+          "attachment_url": "https://i.imgur.com/tvC2nlf.jpeg"
+        },
+        "webhookUrl": "http://localhost:5678/webhook/send-agent-facebook-message",
+        "executionMode": "production"
+      }
+    ]
+  },
+  "meta": {
+    "instanceId": "68569ace98a13471e89c073826f0400811712b30e1d958c48fc0326fed3e25b3"
+  }
+}
