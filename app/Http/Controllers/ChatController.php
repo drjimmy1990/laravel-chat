@@ -31,8 +31,8 @@ class ChatController extends Controller
     public function show(Contact $contact)
     {
         // This is the query you confirmed works and provides the correct order.
-        // We will not add anything else to it.
-        $messages = $contact->messages()->get();
+        // Fetch messages newest-first, frontend will reverse for proper display
+        $messages = $contact->messages()->orderBy('created_at', 'desc')->get();
 
         return response()->json([
             'contact' => $contact,

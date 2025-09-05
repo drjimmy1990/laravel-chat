@@ -250,11 +250,13 @@
             chatBody.innerHTML = '';
 
             if (messages && messages.length > 0) {
-                messages.reverse().forEach(message => {
+                // Do not reverse, keep natural chronological order
+                messages.forEach(message => {
                     const messageHtml = buildMessageHtml(message, contactAvatar);
                     appendMessage(messageHtml);
                 });
-                scrollToBottom();
+                // Force scroll to bottom after rendering
+                setTimeout(scrollToBottom, 100);
             } else {
                 chatBody.innerHTML = '<p class="p-5 text-center">No messages in this conversation yet.</p>';
             }
@@ -388,17 +390,31 @@
                 chatBody.innerHTML = '';
             }
             
-            chatBody.insertAdjacentHTML('afterbegin', html);
+            chatBody.insertAdjacentHTML('beforeend', html);
+            scrollToBottom();
             console.log("Message HTML appended.");
         }
 
         function scrollToBottom() {
-            // Use a small timeout to ensure the DOM is updated before scrolling
             setTimeout(() => {
-                chatBody.scrollTop = chatBody.scrollHeight;
-                console.log("Scrolled to bottom.");
-            }, 50);
+                const chatBodyEl = document.getElementById('tynChatBody');
+                if (chatBodyEl) {
+                    chatBodyEl.scrollTop = chatBodyEl.scrollHeight;
+                    console.log("Forced scroll to bottom.");
+                }
+            }, 150);
         }
+
+        // Force scroll also on window load for safety
+        window.addEventListener("load", () => {
+            const chatBodyEl = document.getElementById('tynChatBody');
+            if (chatBodyEl) {
+                setTimeout(() => {
+                    chatBodyEl.scrollTop = chatBodyEl.scrollHeight;
+                    console.log("Window onload chat scroll forced.");
+                }, 500);
+            }
+        });
     });
 </script>
 <body class="tyn-body">
