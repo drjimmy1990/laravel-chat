@@ -149,8 +149,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const renameButton = document.getElementById('rename-contact-btn');
     const renameInput = document.getElementById('new-contact-name');
     const deleteButton = document.getElementById('delete-contact-btn');
+    const revertButton = document.getElementById('revert-name-btn');
     
-    if (!chatBody || !headerName || !headerAvatarLg || !asideName || !asideAvatar || !aiToggle || !renameButton || !renameInput || !deleteButton) {
+    if (!chatBody || !headerName || !headerAvatarLg || !asideName || !asideAvatar || !aiToggle || !renameButton || !renameInput || !deleteButton || !revertButton) {
         console.error("CRITICAL ERROR: One or more essential HTML elements are missing an ID.");
         return;
     }
@@ -409,6 +410,46 @@ document.addEventListener('DOMContentLoaded', function () {
             const contactInSidebar = document.getElementById(`contact-${currentContactId}`);
             if (contactInSidebar) {
                 contactInSidebar.querySelector('.name').textContent = newName;
+            }
+            renameInput.value = '';
+        }
+    });
+
+    revertButton.addEventListener('click', async function() {
+        if (!currentContactId) return;
+
+        const { data, error } = await supabase
+            .from('contacts')
+            .select('platform_user_id')
+            .eq('id', currentContactId)
+            .single();
+
+        if (error) {
+            console.error('Error fetching original name:', error);
+            alert('Failed to revert name.');
+            return;
+        }
+
+        const originalName = data.platform_user_id;
+
+        const { data: updateData, error: updateError } = await supabase
+            .from('contacts')
+            .update({ name: originalName })
+            .eq('id', currentContactId)
+            .select();
+
+        if (updateError) {
+            console.error('Error reverting contact name:', updateError);
+            alert('Failed to revert name.');
+        } else {
+            console.log('Contact name reverted successfully:', updateData);
+            alert('Contact name reverted successfully.');
+            // Optionally, you can update the name in the UI immediately
+            headerName.textContent = originalName;
+            asideName.textContent = originalName;
+            const contactInSidebar = document.getElementById(`contact-${currentContactId}`);
+            if (contactInSidebar) {
+                contactInSidebar.querySelector('.name').textContent = originalName;
             }
             renameInput.value = '';
         }
