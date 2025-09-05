@@ -145,8 +145,12 @@ document.addEventListener('DOMContentLoaded', function () {
     const headerAvatarLg = document.getElementById('header-avatar-lg');
     const asideName = document.getElementById('aside-name');
     const asideAvatar = document.getElementById('aside-avatar');
+    const aiToggle = document.getElementById('ai-toggle-switch');
+    const renameButton = document.getElementById('rename-contact-btn');
+    const renameInput = document.getElementById('new-contact-name');
+    const deleteButton = document.getElementById('delete-contact-btn');
     
-    if (!chatBody || !headerName || !headerAvatarLg || !asideName || !asideAvatar) {
+    if (!chatBody || !headerName || !headerAvatarLg || !asideName || !asideAvatar || !aiToggle || !renameButton || !renameInput || !deleteButton) {
         console.error("CRITICAL ERROR: One or more essential HTML elements are missing an ID.");
         return;
     }
@@ -224,6 +228,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (headerAvatarSm) headerAvatarSm.src = contactAvatar;
         asideName.textContent = contact.name || contact.platform_user_id;
         asideAvatar.src = contactAvatar;
+        aiToggle.checked = contact.ai_enabled;
 
         chatBody.innerHTML = '';
 
@@ -357,6 +362,78 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         )
         .subscribe();
+
+    aiToggle.addEventListener('change', async function() {
+        if (!currentContactId) return;
+
+        const isEnabled = this.checked;
+
+        const { data, error } = await supabase
+            .from('contacts')
+            .update({ ai_enabled: isEnabled })
+            .eq('id', currentContactId);
+
+        if (error) {
+            console.error('Error updating AI status:', error);
+            // Optionally, revert the toggle switch on error
+            this.checked = !isEnabled;
+        } else {
+            console.log('AI status updated successfully:', data);
+        }
+    });
+
+    renameButton.addEventListener('click', async function() {
+        if (!currentContactId) return;
+
+        const newName = renameInput.value.trim();
+        if (newName === '') {
+            alert('Please enter a name.');
+            return;
+        }
+
+        const { data, error } = await supabase
+            .from('contacts')
+            .update({ name: newName })
+            .eq('id', currentContactId)
+            .select();
+
+        if (error) {
+            console.error('Error updating contact name:', error);
+            alert('Failed to rename contact.');
+        } else {
+            console.log('Contact name updated successfully:', data);
+            alert('Contact renamed successfully.');
+            // Optionally, you can update the name in the UI immediately
+            headerName.textContent = newName;
+            asideName.textContent = newName;
+            const contactInSidebar = document.getElementById(`contact-${currentContactId}`);
+            if (contactInSidebar) {
+                contactInSidebar.querySelector('.name').textContent = newName;
+            }
+            renameInput.value = '';
+        }
+    });
+
+    deleteButton.addEventListener('click', async function() {
+        if (!currentContactId) return;
+
+        if (confirm('Are you sure you want to delete this contact and all their messages? This action cannot be undone.')) {
+            const { data, error } = await supabase
+                .from('contacts')
+                .delete()
+                .eq('id', currentContactId);
+
+            if (error) {
+                console.error('Error deleting contact:', error);
+                alert('Failed to delete contact.');
+            } else {
+                console.log('Contact deleted successfully:', data);
+                alert('Contact deleted successfully.');
+                // Reload the page to reflect the changes
+                location.reload();
+            }
+        }
+    });
 
     // --- 9. Helper to append a message and scroll ---
     function appendMessage(html) {

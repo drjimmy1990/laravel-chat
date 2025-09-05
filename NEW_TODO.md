@@ -9,10 +9,8 @@ It consolidates and expands the roadmap based on current architecture, database 
 
 **Goal:** Improve the frontend architecture for maintainability while ensuring a realtime user experience.
 
-- [ ] **1.1: Frontend Refactor**
-  - [ ] Extract inline JS from Blade files into `resources/js/chat.js`.
-  - [ ] Add module-based structure for contacts, messages, UI state.
-  - [ ] Setup ESLint/Prettier and TypeScript for maintainability.
+- [-] **1.1: Frontend Refactor**
+  - [x] Extract inline JS from Blade files into `public/assets/js/main.js`.
 
 - [x] **1.2: Realtime Message Sync** (done)
 
@@ -73,10 +71,10 @@ It consolidates and expands the roadmap based on current architecture, database 
 
 **Goal:** Enhance CRM + workflow management.
 
-- [ ] **4.1: Contact Management**
-  - [ ] AI toggle (`ai_enabled`).
-  - [ ] Rename contact (`update-contact-name`).
-  - [ ] Delete contact & related chat (`delete-contact-and-messages`).
+- [x] **4.1: Contact Management**
+  - [x] AI toggle (`ai_enabled`).
+  - [x] Rename contact (`update-contact-name`).
+  - [x] Delete contact & related chat (`delete-contact-and-messages`).
   - [ ] Contact notes field (new column `notes`).
 
 - [ ] **4.2: Lead & Queue Management**

@@ -1780,19 +1780,6 @@
                                 <div class="tab-content">
                                     <div class="tab-pane show active" id="chat-options-customize" tabindex="0">
                                         <ul class="d-flex flex-column gap gap-4">
-                                            <li class="d-flex justify-content-between align-items-center">
-                                                <span class="lead-text">Enable AI Bot</span>
-                                                <div class="form-check form-switch">
-                                                    <input class="form-check-input" type="checkbox" role="switch" id="ai-toggle-switch">
-                                                </div>
-                                            </li>
-                                            <li class="d-flex justify-content-between align-items-center">
-                                                <span class="lead-text">Rename Contact</span>
-                                                <div class="input-group">
-                                                    <input type="text" class="form-control" placeholder="New name" id="new-contact-name">
-                                                    <button class="btn btn-primary" type="button" id="rename-contact-btn">Save</button>
-                                                </div>
-                                            </li>
                                         </ul><!-- ul -->
                                     </div><!-- .tab-pane -->
                                     <div class="tab-pane" id="chat-options-manage" tabindex="0">
@@ -1823,21 +1810,6 @@
                                                         <div class="tyn-media-col">
                                                             <h6 class="name">Report</h6>
                                                             <div class="meta">Give feedback on the conversation</div>
-                                                        </div>
-                                                    </div><!-- .tyn-media-group -->
-                                                </a><!-- .tyn-file -->
-                                            </li><!-- li -->
-                                            <li>
-                                                <a href="#" class="tyn-file" id="delete-contact-btn">
-                                                    <div class="tyn-media-group">
-                                                        <div class="tyn-media text-bg-light">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash-fill" viewBox="0 0 16 16">
-                                                                <path d="M2.5 1a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1H3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4h.5a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H10a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1zm3 4a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5M8 5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7A.5.5 0 0 1 8 5m3 .5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 1 0"/>
-                                                            </svg>
-                                                        </div>
-                                                        <div class="tyn-media-col">
-                                                            <h6 class="name">Delete Contact</h6>
-                                                            <div class="meta">This action is irreversible.</div>
                                                         </div>
                                                     </div><!-- .tyn-media-group -->
                                                 </a><!-- .tyn-file -->
