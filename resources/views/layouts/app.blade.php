@@ -162,7 +162,8 @@
         let messageSubscription = null;
 
         // --- 2. Get references to all essential HTML elements ---
-        const chatBody = document.getElementById('tynReply');
+        const chatBody = document.getElementById('tynReply');          // container for messages
+        const chatScrollContainer = document.getElementById('tynChatBody'); // scrollable container
         const headerName = document.getElementById('header-name');
         const headerAvatarLg = document.getElementById('header-avatar-lg');
         const asideName = document.getElementById('aside-name');
@@ -397,12 +398,14 @@
 
         function scrollToBottom() {
             setTimeout(() => {
-                const chatBodyEl = document.getElementById('tynChatBody');
-                if (chatBodyEl) {
-                    chatBodyEl.scrollTop = chatBodyEl.scrollHeight;
-                    console.log("Forced scroll to bottom.");
+                let scrollEl = document.querySelector('#tynChatBody .simplebar-content-wrapper');
+                if (!scrollEl) scrollEl = chatScrollContainer;
+
+                if (scrollEl) {
+                    scrollEl.scrollTop = scrollEl.scrollHeight;
+                    console.log("Forced scroll to bottom using", scrollEl.className);
                 }
-            }, 150);
+            }, 300);
         }
 
         // Force scroll also on window load for safety
@@ -414,6 +417,9 @@
                     console.log("Window onload chat scroll forced.");
                 }, 500);
             }
+    
+            // --- 10. Ensure scroll after UI update ---
+            // (Removed MutationObserver - only scroll on initial load)
         });
     });
 </script>
