@@ -20,10 +20,10 @@ This document outlines the development plan for enhancing the Chat Dashboard app
     - [x] **Test:** Open a chat, manually insert a new message for that contact in the Supabase dashboard, and confirm it appears in the UI instantly without a page refresh.
 
 - [x] **Task 1.3: Implement Realtime Contact List Updates**
-    - [ ] Subscribe to the `contacts` table for real-time updates.
-    - [ ] When a contact record changes (e.g., `last_message_preview`, `unread_count`), find the corresponding contact in the left sidebar and update its content.
-    - [ ] Ensure the contact list automatically re-sorts to show the most recent interaction at the top.
-    - [ ] **Test:** With the dashboard open, send a new message to a contact (triggering the database function to update the contact summary). Verify the contact's preview and unread count update instantly and the contact moves to the top of the list.
+    - [x] Subscribe to the `contacts` table for real-time updates.
+    - [x] When a contact record changes (e.g., `last_message_preview`, `unread_count`), find the corresponding contact in the left sidebar and update its content.
+    - [x] Ensure the contact list automatically re-sorts to show the most recent interaction at the top.
+    - [x] **Test:** With the dashboard open, send a new message to a contact (triggering the database function to update the contact summary). Verify the contact's preview and unread count update instantly and the contact moves to the top of the list.
 
 ---
 
