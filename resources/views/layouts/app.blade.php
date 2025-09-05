@@ -40,6 +40,121 @@
         p.textContent = str;
         return p.innerHTML;
     }
+    function getPlatformAvatar(platform) {
+        let svg = '';
+        // Default icon
+        let defaultIcon = `
+            <div class="tyn-media tyn-size-lg tyn-circle">
+                <img src="{{ asset('images/avatar/1.jpg') }}" alt="">
+            </div>`;
+
+        switch (platform) {
+            case 'whatsapp':
+                svg = `
+                    <div class="tyn-media tyn-size-lg tyn-circle">
+                        <div class="tyn-media-app bg-success text-white">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-whatsapp" viewBox="0 0 16 16">
+                                <path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592zm3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.729.729 0 0 0-.529.247c-.182.198-.691.677-.691 1.654 0 .977.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232z"/>
+                            </svg>
+                        </div>
+                    </div>`;
+                break;
+            case 'facebook':
+                svg = `
+                    <div class="tyn-media tyn-size-lg tyn-circle">
+                        <div class="tyn-media-app bg-primary text-white">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-facebook" viewBox="0 0 16 16">
+                                <path d="M16 8.049c0-4.446-3.582-8.05-8-8.05C3.58 0-.002 3.603-.002 8.05c0 4.017 2.926 7.347 6.75 7.951v-5.625h-2.03V8.05H6.75V6.275c0-2.017 1.195-3.131 3.022-3.131.876 0 1.791.157 1.791.157v1.98h-1.009c-.993 0-1.303.621-1.303 1.258v1.51h2.218l-.354 2.326H9.25V16c3.824-.604 6.75-3.934 6.75-7.951"/>
+                            </svg>
+                        </div>
+                    </div>`;
+                break;
+            default:
+                svg = `
+                    <div class="tyn-media tyn-size-lg tyn-circle">
+                        <div class="tyn-media-app bg-secondary text-white">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-chat-dots-fill" viewBox="0 0 16 16">
+                               <path d="M16 8c0 3.866-3.582 7-8 7a9 9 0 0 1-2.347-.306c-.584.296-1.925.864-4.181 1.234-.2.032-.352-.176-.273-.362.354-.836.674-1.95.77-2.966C.744 11.37 0 9.76 0 8c0-3.866 3.582-7 8-7s8 3.134 8 7zM5 8a1 1 0 1 0-2 0 1 1 0 0 0 2 0zm4 0a1 1 0 1 0-2 0 1 1 0 0 0 2 0zm3 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
+                            </svg>
+                        </div>
+                    </div>`;
+        }
+        return svg;
+    }
+
+    function createContactInSidebar(contact) {
+        const contactList = document.querySelector('.tyn-aside-list');
+        if (!contactList) return;
+
+        // Remove placeholder if it exists
+        const placeholder = contactList.querySelector('p');
+        if (placeholder && placeholder.textContent.includes('No contacts')) {
+            contactList.innerHTML = '';
+        }
+
+        const name = (contact.name && contact.name.trim().length > 1) ? contact.name : contact.platform_user_id;
+        const preview = (contact.last_message_preview || '').substring(0, 25) + ((contact.last_message_preview || '').length > 25 ? '...' : '');
+
+        let badgeHtml = '';
+        if (contact.unread_count > 0) {
+            badgeHtml = `<div class="badge bg-primary rounded-pill">${contact.unread_count}</div>`;
+        }
+
+        const newContactHtml = `
+            <li id="contact-${contact.id}" data-id="${contact.id}" class="tyn-aside-item js-toggle-main contact-item" style="cursor: pointer;">
+                <div class="tyn-media-group">
+                    ${getPlatformAvatar(contact.platform)}
+                    <div class="tyn-media-col">
+                        <div class="tyn-media-row">
+                            <h6 class="name">${escapeHTML(name)}</h6>
+                        </div>
+                        <div class="tyn-media-row has-dot-sap">
+                            <p class="content">${escapeHTML(preview)}</p>
+                            ${badgeHtml}
+                        </div>
+                    </div>
+                </div>
+            </li>
+        `;
+
+        contactList.insertAdjacentHTML('afterbegin', newContactHtml);
+    }
+
+    function updateContactInSidebar(contact) {
+        const contactElement = document.getElementById(`contact-${contact.id}`);
+        if (!contactElement) return;
+
+        const previewElement = contactElement.querySelector('.content');
+        const badgeElement = contactElement.querySelector('.badge');
+
+        if (previewElement) {
+            // Simple string truncation for the preview
+            const previewText = contact.last_message_preview || '';
+            previewElement.textContent = previewText.length > 25 ? previewText.substring(0, 25) + '...' : previewText;
+        }
+
+        if (badgeElement) {
+            if (contact.unread_count > 0) {
+                badgeElement.textContent = contact.unread_count;
+                badgeElement.style.display = '';
+            } else {
+                badgeElement.style.display = 'none';
+            }
+        } else if (contact.unread_count > 0) {
+            // If the badge doesn't exist, create it
+            const newBadge = document.createElement('div');
+            newBadge.className = 'badge bg-primary rounded-pill';
+            newBadge.textContent = contact.unread_count;
+            const mediaRow = contactElement.querySelector('.has-dot-sap');
+            if (mediaRow) {
+                mediaRow.appendChild(newBadge);
+            }
+        }
+
+        // Move the updated contact to the top of the list
+        const parentList = contactElement.parentNode;
+        parentList.prepend(contactElement);
+    }
 
     document.addEventListener('DOMContentLoaded', function () {
         
@@ -157,8 +272,8 @@
                     bubbleContent = `
                         <div style="padding: 5px;">
                             <a href="${escapeHTML(attachmentUrl)}" target="_blank">
-                                <img src="${escapeHTML(attachmentUrl)}" 
-                                     style="max-width: 250px; max-height: 250px; border-radius: 10px; display: block;" 
+                                <img src="${escapeHTML(attachmentUrl)}"
+                                     style="max-width: 250px; max-height: 250px; border-radius: 10px; display: block;"
                                      alt="Image attachment">
                             </a>
                         </div>`;
@@ -213,13 +328,13 @@
             const channelName = `messages-for-${contactId}`;
             messageSubscription = supabase
                 .channel(channelName)
-                .on('postgres_changes', 
-                    { 
-                        event: 'INSERT', 
-                        schema: 'public', 
+                .on('postgres_changes',
+                    {
+                        event: 'INSERT',
+                        schema: 'public',
                         table: 'messages',
                         filter: `contact_id=eq.${contactId}`
-                    }, 
+                    },
                     (payload) => {
                         console.log('New message received:', payload.new);
                         // Check if the chat for this contact is currently open
@@ -244,54 +359,24 @@
         // --- 8. Subscribe to Contact List Updates ---
         const contactSubscription = supabase
             .channel('public-contacts')
-            .on('postgres_changes', 
-                { 
-                    event: 'UPDATE', 
-                    schema: 'public', 
-                    table: 'contacts' 
+            .on('postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'contacts'
                 },
                 (payload) => {
-                    console.log('Contact updated:', payload.new);
-                    updateContactInSidebar(payload.new);
+                    console.log('Contact change received:', payload);
+                    if (payload.eventType === 'INSERT') {
+                        console.log('New contact detected, creating element...');
+                        createContactInSidebar(payload.new);
+                    } else if (payload.eventType === 'UPDATE') {
+                        console.log('Contact update detected, updating element...');
+                        updateContactInSidebar(payload.new);
+                    }
                 }
             )
             .subscribe();
-
-        function updateContactInSidebar(contact) {
-            const contactElement = document.getElementById(`contact-${contact.id}`);
-            if (!contactElement) return;
-
-            const previewElement = contactElement.querySelector('.content');
-            const badgeElement = contactElement.querySelector('.badge');
-
-            if (previewElement) {
-                // Simple string truncation for the preview
-                const previewText = contact.last_message_preview || '';
-                previewElement.textContent = previewText.length > 25 ? previewText.substring(0, 25) + '...' : previewText;
-            }
-
-            if (badgeElement) {
-                if (contact.unread_count > 0) {
-                    badgeElement.textContent = contact.unread_count;
-                    badgeElement.style.display = '';
-                } else {
-                    badgeElement.style.display = 'none';
-                }
-            } else if (contact.unread_count > 0) {
-                // If the badge doesn't exist, create it
-                const newBadge = document.createElement('div');
-                newBadge.className = 'badge bg-primary rounded-pill';
-                newBadge.textContent = contact.unread_count;
-                const mediaRow = contactElement.querySelector('.has-dot-sap');
-                if (mediaRow) {
-                    mediaRow.appendChild(newBadge);
-                }
-            }
-
-            // Move the updated contact to the top of the list
-            const parentList = contactElement.parentNode;
-            parentList.prepend(contactElement);
-        }
 
         // --- 9. Helper to append a message and scroll ---
         function appendMessage(html) {
